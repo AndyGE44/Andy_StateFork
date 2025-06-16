@@ -28,42 +28,42 @@ app.add_middleware(
     allow_headers=["*"],  # Allow all headers
 )
 
-# Logging middleware to log requests and responses
-rr_counter = 0
-
-@app.middleware("http")
-async def log_requests(request, call_next):
-    """
-    Middleware to log incoming requests and their responses.
-    """
-    ip = request.client.host
-    port = request.client.port
-    method = request.method
-    url = request.url.path
-
-    global rr_counter
-    rr_counter += 1
-    local_rr_counter = rr_counter
-
-    logger.info(f"[{local_rr_counter:3d}] Request\tFrom {ip}:{port} - {method} {url}")
-    response = await call_next(request)
-    logger.info(f"[{local_rr_counter:3d}] Response\tStatus: {response.status_code}")
-
-    return response
+# # Logging middleware to log requests and responses
+# rr_counter = 0
+#
+# @app.middleware("http")
+# async def log_requests(request, call_next):
+#     """
+#     Middleware to log incoming requests and their responses.
+#     """
+#     ip = request.client.host
+#     port = request.client.port
+#     method = request.method
+#     url = request.url.path
+#
+#     global rr_counter
+#     rr_counter += 1
+#     local_rr_counter = rr_counter
+#
+#     logger.info(f"[{local_rr_counter:3d}] Request\tFrom {ip}:{port} - {method} {url}")
+#     response = await call_next(request)
+#     logger.info(f"[{local_rr_counter:3d}] Response\tStatus: {response.status_code}")
+#
+#     return response
 
 """
 I deliberately make every endpoint use the GET method for simplicity and testability.
 """
 
 @app.get("/")
-async def root():
+def root():
     """
     Root endpoint to check if the API is running.
     """
     return {"message": "Welcome to the StateFork API!"}
 
 @app.get("/get/{key}", status_code=status.HTTP_200_OK)
-async def get_value(key: str):
+def get_value(key: str):
     """
     Retrieve the value for a given key from the KV store.
     """
@@ -74,7 +74,7 @@ async def get_value(key: str):
 
 
 @app.get("/set/{key}/{value}", status_code=status.HTTP_200_OK)
-async def set_value(key: str, value: str):
+def set_value(key: str, value: str):
     """
     Set a value for a given key in the KV store.
     """
@@ -82,7 +82,7 @@ async def set_value(key: str, value: str):
     return {"key": key, "value": value}
 
 @app.get("/all", status_code=status.HTTP_200_OK)
-async def list_all():
+def list_all():
     """
     List all key-value pairs in the KV store.
     """
@@ -96,8 +96,8 @@ async def list_all():
 if __name__ == "__main__":
     uvicorn.run(
         "app.api_server:app",
-        host="0.0.0.0",
+        host="127.0.0.1",
         port=8000,
-        reload=True,
+        reload=False,
         log_level="info"
     )
