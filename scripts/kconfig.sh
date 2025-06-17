@@ -200,10 +200,15 @@ if [ "$d_criu" -eq 1 ]; then
     # Incremental dump features
     scripts/config --enable CONFIG_MEM_SOFT_DIRTY
     scripts/config --enable CONFIG_USERFAULTFD
-    # My personal choices for debugging
+    # My personal choices
     scripts/config --enable CONFIG_INET_TCP_DIAG
+    scripts/config --enable CONFIG_NETFILTER
+    scripts/config --enable CONFIG_NETFILTER_ADVANCED
+    scripts/config --enable CONFIG_NETFILTER_XTABLES
+    scripts/config --enable CONFIG_NETFILTER_XT_MARK
     scripts/config --enable CONFIG_NETFILTER_XT_TARGET_MARK
     scripts/config --enable CONFIG_NETFILTER_XT_MATCH_MARK
+    scripts/config --enable CONFIG_VETH
 fi
 
 report "Kernel configuration is complete!"
