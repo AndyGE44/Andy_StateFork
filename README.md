@@ -16,16 +16,21 @@ StateFork/
   ├── Dockerfile
   ├── README.md
   ├── app
-  │   ├── api_server.py (example app 1)
-  │   ├── kv_store.py (example app 1)
-  |   └── stateful_logger.py (example app 2)
+  │   ├── stateful_logger.py  (sample app 1: Stateful Logger)
+  │   ├── api_server.py       (sample app 2: FastAPI server)
+  │   ├── kv_store.py         (sample app 2: FastAPI server)
+  │   ├── rdb.cpp             (sample app 3: C++ Random Database)
+  │   └── Makefile            (sample app 3: C++ Random Database)
   ├── controller
   │   ├── base_env_manager.py
   │   ├── benchmark.py
   │   ├── criu_env_manager.py
   │   ├── docker_env_manager.py
   │   └── main.py
-  └── requirements.txt
+  ├── docs
+  ├── logs
+  ├── requirements.txt
+  └── scripts
 ```
 
 ## 🚀 Quick Start
@@ -72,12 +77,15 @@ See the sample run screenshot below.
 - A Linux kernel compiled with CRIU support.
     - You may use my universal AKCS helper `scripts/kconfig.sh` with the `-r` option to generate a compatible kernel config.
 - `criu` tool installed from https://launchpad.net/~criu/+archive/ubuntu/ppa or your system package manager.
+- root privileges or `sudo` permissions to run CRIU commands.
 
 ## 📊 Benchmarking Support
 The tool logs and displays operation performance statistics such as:
 - Snapshot creation time
+- Container creation time
 - Container restore time
-- Sequential operation logging with timestamps
+- Sequential operation logging
+- Tree-like snapshot management
 
 ## 📸 Sample Run
 ![Sample Run Screenshot](./docs/sample_run.png)
