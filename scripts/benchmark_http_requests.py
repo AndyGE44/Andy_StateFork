@@ -13,9 +13,11 @@ URLS = [
     "http://127.0.0.1:8000/get/key1",
     "http://127.0.0.1:8000/get/key2",
     "http://127.0.0.1:8000/set/key1/new_value1",
+    "http://127.0.0.1:8000/set/key1/new_new_value1",
+    "http://127.0.0.1:8000/set/alex/xu",
 ]
 
-NUM_REQUESTS = 10
+NUM_REQUESTS = 100
 
 def main():
     success_count = 0
