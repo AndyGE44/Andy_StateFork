@@ -1,10 +1,9 @@
 import logging
 from abc import ABC, abstractmethod
-from benchmark import BenchmarkStats
 from dataclasses import dataclass, field
 from typing import Dict, List, Optional
+from .benchmark import BenchmarkStats
 
-logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 
@@ -19,7 +18,8 @@ class EnvironmentManager(ABC):
     """
     The base class and interface for managing environment snapshots.
 
-    Applied the Template Method design pattern.
+    Applied the Template Method design pattern for core operations.
+    Applied the Strategy design pattern for different environment managers.
     """
 
     def __init__(self):
@@ -28,6 +28,7 @@ class EnvironmentManager(ABC):
         self.current_snapshot_id: Optional[str] = None
         self.last_snapshot_id: Optional[str] = None
         self.snapshot_graph: Dict[str, SnapshotNode] = {}  # snapshot_id -> SnapshotNode
+        self.__tmp_tree_print: str = "" # Temporary variable for tree printing, note this makes it non-thread-safe
 
     def snapshot(self) -> Optional[str]:
         """
@@ -126,7 +127,7 @@ class EnvironmentManager(ABC):
         """
         pass
 
-    def cleanup(self):
+    def cleanup(self) -> None:
         """
         Clean up any resources used by the environment manager.
         This should be called when the manager is no longer needed.
@@ -139,7 +140,7 @@ class EnvironmentManager(ABC):
         logger.info("Cleanup complete.")
 
     @abstractmethod
-    def _core_cleanup(self):
+    def _core_cleanup(self) -> None:
         """
         Internal method to clean up resources.
         Concrete implementations should override this method.
@@ -153,21 +154,29 @@ class EnvironmentManager(ABC):
         """
         return list(self.snapshots.keys())
 
-    def print_snapshot_tree(self):
+    def print_snapshot_tree(self) -> str:
+        """
+        This method traverses the snapshot graph and formats it for display.
+        Special Notes: This is NOT thread-safe due to the use of a temporary variable.
+        :return: str representation of the snapshot tree.
+        """
+        self.__tmp_tree_print = ""
+
         def recurse(sid: str, indent: str = " "):
             if sid == self.current_snapshot_id:
-                print(f"{indent}- {sid} (current)")
+                self.__tmp_tree_print += f"{indent}- {sid} (current)\n"
             elif sid == self.last_snapshot_id:
-                print(f"{indent}- {sid} (last)")
+                self.__tmp_tree_print += f"{indent}- {sid} (last)\n"
             else:
-                print(f"{indent}- {sid}")
+                self.__tmp_tree_print += f"{indent}- {sid}\n"
             for child in self.snapshot_graph[sid].children:
                 recurse(child, indent + "  ")
 
         roots = [sid for sid, node in self.snapshot_graph.items() if node.parent_id is None]
         if not roots:
-            print("No snapshot tree available.")
-            return
-        print("Snapshot Tree:")
+            return "No snapshot tree available.\n"
+
+        self.__tmp_tree_print += "Snapshot Tree:\n"
         for root in roots:
             recurse(root)
+        return self.__tmp_tree_print
