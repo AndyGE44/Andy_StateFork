@@ -27,6 +27,7 @@ class PodmanHybridManager(EnvironmentManager):
         if sid is None:
             raise RuntimeError("Failed to create initial snapshot.")
 
+        # Init the Tree Graph
         self.snapshot_graph[sid] = SnapshotNode(snapshot_id=sid, parent_id=None)
         self.current_snapshot_id = sid
         self.last_snapshot_id = sid
@@ -35,6 +36,7 @@ class PodmanHybridManager(EnvironmentManager):
         result = subprocess.run(["podman", "ps", "-q", "-f", f"name={self.container_name}"], capture_output=True, text=True)
         if not result.stdout.strip():
             raise RuntimeError(f"Container '{self.container_name}' is not running. Please start it before using this manager.")
+        logger.debug(f"Pass validation: Container '{self.container_name}' is running.")
 
     def _core_snapshot(self) -> tuple[Optional[str], float]:
         sid = str(uuid.uuid4())[:8]
