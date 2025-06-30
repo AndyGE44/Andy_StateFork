@@ -10,6 +10,8 @@ def main(args):
         manager = create_env_manager("docker_build")
     elif args.method == "criu":
         manager = create_env_manager("criu_launch")
+    elif args.method == "podman":
+        manager = create_env_manager("podman_build")
     else:
         raise ValueError(f"Unsupported command method: {args.method}")
 
@@ -66,7 +68,7 @@ def main(args):
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Environment Manager Launcher")
-    parser.add_argument("--method", choices=["docker", "criu"], default="docker",
+    parser.add_argument("--method", choices=["docker", "criu", "podman"], default="docker",
                         help="Choose the environment manager backend")
     args_ns = parser.parse_args()
     logging.basicConfig(level=logging.INFO)

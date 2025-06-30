@@ -4,7 +4,6 @@ import time
 import uuid
 import shutil
 import logging
-from tkinter import image_names
 from typing import Optional
 from .base_env_manager import EnvironmentManager, SnapshotNode
 
