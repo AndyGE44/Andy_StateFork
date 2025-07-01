@@ -27,11 +27,12 @@ def test_time_b(env: EnvironmentManager) -> float:
 
     for i in range(REPEATS):
         print(f"[Round {i+1}] Sending init request...")
-        response = requests.get(URL)
+        response = requests.get(URL, headers={"Connection": "close"})
         assert response.status_code == 200
-        print(f"[Round {i+1}]     Received: {response.text}")
+        # print(f"[Round {i+1}]     Received length {len(response.text)} bytes")
         print(f"[Round {i+1}] ... Init request successful")
-        time.sleep(1)
+
+        time.sleep(5)  # Allow time for the socket to close
 
         print(f"[Round {i+1}] Snapshot and stepping...")
         sid = env.snapshot()
