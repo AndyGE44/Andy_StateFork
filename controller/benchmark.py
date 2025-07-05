@@ -4,7 +4,7 @@ import statistics
 import subprocess
 from collections import defaultdict
 from dataclasses import dataclass, field
-from typing import List
+from typing import List, Protocol, runtime_checkable
 
 
 @dataclass
@@ -15,15 +15,29 @@ class BenchmarkEntry:
     elapsed_time: float
 
 
-class SizeCalculator:
+@runtime_checkable
+class SizeCalculator(Protocol):
+    """
+    Protocol for size calculators that can summarize and detail storage costs.
+    """
+    def summary(self) -> str:
+        ...
+    def details(self) -> str:
+        ...
+
+
+class FileSizeCalculator:
+    """
+    One generic SizeCalculator that calculates file sizes in a directory using FileSystem's APIs.
+    """
     _counter = 0
 
     def __init__(self, root_dir: str):
-        self.logger = logging.getLogger("Benchmark.SizeCal")
+        self.logger = logging.getLogger("Benchmark.FileSizeCal")
         self.root_dir = os.path.abspath(root_dir)
         type(self)._counter += 1
         self.instance_id = type(self)._counter
-        self.logger.info(f"Attached SizeCalculator instance #{self.instance_id} to root directory: {self.root_dir}")
+        self.logger.info(f"Attached FileSizeCalculator #{self.instance_id} to directory: {self.root_dir}")
 
     def _get_all_items(self) -> List[str]:
         if not os.path.exists(self.root_dir):
@@ -86,8 +100,10 @@ class BenchmarkStats:
         self.sequence_counter += 1
         self.log.append(BenchmarkEntry(self.sequence_counter, operation, target_id, elapsed_time))
 
-    def attach_size_calculator(self, root_dir: str) -> None:
-        self.size_calculators.append(SizeCalculator(root_dir))
+    def attach_size_calculator(self, sc: SizeCalculator) -> None:
+        if not isinstance(sc, SizeCalculator):
+            raise TypeError("SizeCalculator must implement the SizeCalculator protocol.")
+        self.size_calculators.append(sc)
 
     def print_stats(self) -> str:
         stats = defaultdict(list)
