@@ -4,7 +4,7 @@ import logging
 from controller import create_env_manager
 
 def main(args):
-    available_commands = ["snapshot", "restore <id>", "step", "tree", "stats", "history", "exit"]
+    available_commands = ["snapshot", "restore <id>", "step", "tree", "stats", "history", "storage", "exit"]
 
     if args.method == "docker":
         manager = create_env_manager("docker_build")
@@ -55,6 +55,9 @@ def main(args):
 
         elif cmd == "history":
             print(manager.stats.print_history())
+
+        elif cmd == "storage":
+            print(manager.stats.print_size_details())
 
         elif cmd == "exit":
             print(manager.stats.print_stats())
