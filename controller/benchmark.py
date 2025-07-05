@@ -1,3 +1,4 @@
+import logging
 import os
 import statistics
 import subprocess
@@ -18,9 +19,11 @@ class SizeCalculator:
     _counter = 0
 
     def __init__(self, root_dir: str):
+        self.logger = logging.getLogger("Benchmark.SizeCal")
         self.root_dir = os.path.abspath(root_dir)
         type(self)._counter += 1
         self.instance_id = type(self)._counter
+        self.logger.info(f"Attached SizeCalculator instance #{self.instance_id} to root directory: {self.root_dir}")
 
     def _get_all_items(self) -> List[str]:
         if not os.path.exists(self.root_dir):
@@ -36,6 +39,7 @@ class SizeCalculator:
                 output = subprocess.check_output(["du", "-sb", path], text=True)
                 return int(output.split()[0])
             except Exception as e:
+                self.logger.error(f"Error getting size for {path}: {e}")
                 return 0
         return 0
 
