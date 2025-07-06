@@ -8,6 +8,7 @@ import uuid
 import logging
 from typing import Optional, List
 from .base_env_manager import EnvironmentManager, SnapshotNode
+from .benchmark import FileSizeCalculator
 
 logger = logging.getLogger("EnvManager.CRIU")
 
@@ -16,7 +17,10 @@ class CRIUAttachManager(EnvironmentManager):
     """
     CRIUAttachManager is a specialized CRIU EnvironmentManager that attaches to an existing process.
     """
-    def __init__(self, target_pid: int, work_dir: str = "/tmp/statefork_criu"):
+    def __init__(self,
+                 target_pid: int,
+                 work_dir: str = "/tmp/statefork_criu"
+                 ):
         super().__init__(backend_name="CRIU")
         self.work_dir = work_dir
         os.makedirs(self.work_dir, exist_ok=True)
@@ -31,9 +35,14 @@ class CRIUAttachManager(EnvironmentManager):
         if sid is None:
             raise RuntimeError("Failed to create initial snapshot.")
 
+        # Init the Tree Graph
         self.snapshot_graph[sid] = SnapshotNode(snapshot_id=sid, parent_id=None)
         self.current_snapshot_id = sid
         self.last_snapshot_id = sid
+
+        # Attach the FileSizeCalculator to the work directory
+        self.stats.attach_size_calculator(FileSizeCalculator(self.work_dir))
+
 
     # Benchmarking Notes: This method causes a delay of {soft_timeout + hard_timeout} seconds!!!
     # TODO: Any more efficient way to kill the original process?
@@ -104,15 +113,20 @@ class CRIUAttachManager(EnvironmentManager):
             return None, 0.0
 
     def _core_cleanup(self):
+        logger.info("Shutting down CRIU environment...")
         self.__kill_original_process(soft_timeout=2.0, hard_timeout=2.0)
+        logger.info(f"Removing work directory {self.work_dir}...")
         shutil.rmtree(self.work_dir, ignore_errors=True)
 
 
-class CRIULaunchManager(CRIUAttachManager):
+class CRIUBuildManager(CRIUAttachManager):
     """
-    CRIULaunchManager is a specialized CRIU EnvironmentManager that launches a new APP process.
+    CRIUBuildManager is a specialized CRIU EnvironmentManager that launches a new APP process.
     """
-    def __init__(self, work_dir: str = "/tmp/statefork_criu", command: Optional[List[str]] = None):
+    def __init__(self,
+                 work_dir: str = "/tmp/statefork_criu",
+                 command: Optional[List[str]] = None
+                 ):
         if command is None:
             command = [
                 "uvicorn", "app.api_server:app",

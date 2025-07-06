@@ -4,14 +4,16 @@ import logging
 from controller import create_env_manager
 
 def main(args):
-    available_commands = ["snapshot", "restore <id>", "step", "tree", "stats", "history", "exit"]
+    available_commands = ["snapshot", "restore <id>", "step", "tree", "stats", "history", "storage", "exit"]
 
     if args.method == "docker":
         manager = create_env_manager("docker_build")
-    elif args.method == "criu":
-        manager = create_env_manager("criu_launch")
     elif args.method == "podman":
         manager = create_env_manager("podman_build")
+    elif args.method == "criu":
+        manager = create_env_manager("criu_build")
+    elif args.method == "hybrid":
+        manager = create_env_manager("hybrid_build")
     else:
         raise ValueError(f"Unsupported command method: {args.method}")
 
@@ -56,6 +58,9 @@ def main(args):
         elif cmd == "history":
             print(manager.stats.print_history())
 
+        elif cmd == "storage":
+            print(manager.stats.print_size_details())
+
         elif cmd == "exit":
             print(manager.stats.print_stats())
             print("Cleaning up resources...")
@@ -68,7 +73,7 @@ def main(args):
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Environment Manager Launcher")
-    parser.add_argument("--method", choices=["docker", "criu", "podman"], default="docker",
+    parser.add_argument("--method", choices=["docker", "criu", "podman", "hybrid"], default="docker",
                         help="Choose the environment manager backend")
     args_ns = parser.parse_args()
     logging.basicConfig(level=logging.INFO)

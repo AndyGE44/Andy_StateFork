@@ -4,20 +4,24 @@ import time
 import uuid
 import shutil
 import logging
-from typing import Optional
+from typing import Optional, List
 from .base_env_manager import EnvironmentManager, SnapshotNode
+from .benchmark import FileSizeCalculator
 
 logger = logging.getLogger("EnvManager.PodmanHybrid")
 
 
-class PodmanHybridManager(EnvironmentManager):
-    def __init__(self, container_name: str, export_dir: str = "/tmp/statefork_podman"):
+class HybridAttachManager(EnvironmentManager):
+    def __init__(self,
+                 container_name: str,
+                 export_dir: str = "/tmp/statefork_podman"
+                 ):
         super().__init__(backend_name="Podman+CRIU")
         self.container_name = container_name
         self.export_dir = export_dir
         os.makedirs(self.export_dir, exist_ok=True)
 
-        logger.info(f"Initializing PodmanHybridManager with container '{self.container_name}'")
+        logger.info(f"Initializing HybridAttachManager with container '{self.container_name}'")
 
         # Ensure container is running
         self.__ensure_container_running()
@@ -31,6 +35,10 @@ class PodmanHybridManager(EnvironmentManager):
         self.snapshot_graph[sid] = SnapshotNode(snapshot_id=sid, parent_id=None)
         self.current_snapshot_id = sid
         self.last_snapshot_id = sid
+
+        # Attach the FileSizeCalculator to the export directory
+        self.stats.attach_size_calculator(FileSizeCalculator(self.export_dir))
+
 
     def __ensure_container_running(self):
         result = subprocess.run(["podman", "ps", "-q", "-f", f"name={self.container_name}"], capture_output=True, text=True)
@@ -46,7 +54,7 @@ class PodmanHybridManager(EnvironmentManager):
         subprocess.run([
             "podman", "container", "checkpoint", self.container_name,
             "-e", export_path, "--leave-running"
-        ], check=True)
+        ], stdout=subprocess.DEVNULL, check=True)
         elapsed = time.time() - start
 
         self.snapshots[sid] = export_path
@@ -67,7 +75,7 @@ class PodmanHybridManager(EnvironmentManager):
             "podman", "container", "restore",
             "-i", export_path,
             "-n", self.container_name
-        ], check=True)
+        ], stdout=subprocess.DEVNULL, check=True)
         elapsed = time.time() - start
 
         return self.container_name, elapsed
@@ -79,14 +87,23 @@ class PodmanHybridManager(EnvironmentManager):
         shutil.rmtree(self.export_dir, ignore_errors=True)
 
 
-class PodmanBuildManager(PodmanHybridManager):
-    def __init__(self, container_name="podman-build", dockerfile_dir: str = ".", export_dir: str = "/tmp/statefork_podman"):
+class HybridBuildManager(HybridAttachManager):
+    def __init__(self,
+                 container_name: str = "podman-build",
+                 dockerfile_dir: str = ".",
+                 export_dir: str = "/tmp/statefork_podman",
+                 extra_args: Optional[List[str]] = None
+                 ):
         image_name = "init_image"
+        if extra_args is None:
+            extra_args = ["-p", "8000:8000", "-v", "/tmp:/tmp"]
+
         logger.info(f"Building Podman image from directory '{dockerfile_dir}'...")
-        subprocess.run(["podman", "build", "-t", image_name, dockerfile_dir], check=True)
+        subprocess.run(["podman", "build", "-t", image_name, dockerfile_dir], stdout=subprocess.DEVNULL, check=True)
 
         logger.info(f"Launching container '{container_name}' from image '{image_name}'...")
-        subprocess.run(["podman", "run", "-d", "--rm", "-p", "8000:8000", "-v", "/tmp:/tmp","--name", container_name, image_name], check=True)
+        cmd = ["podman", "run", "-d", "--rm", "--name", container_name] + extra_args + [image_name]
+        subprocess.run(cmd, stdout=subprocess.DEVNULL, check=True)
 
         time.sleep(2)  # wait for app to initialize
 

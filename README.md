@@ -8,10 +8,10 @@ enabling users to take snapshots, roll back state, and benchmark key operations 
 
 - 🌱 Take and manage snapshots of running apps
 - 🔁 Restore to previous snapshots instantly
-- 🧪 Benchmark performance of snapshot/restore operations
+- 🧪 Benchmark time and storage performance of snapshot/restore operations
 - 🧩 Works with unmodified apps (FastAPI, Python/C++ scripts, etc.)
 - ⚙️ CLI-based interactive interface
-- 🧱 Easily extendable backend design with Docker, CRIU, or Podman support
+- 🧱 Easily extendable backend design with Docker, Podman, CRIU, or FirecrackerVM support
 
 ## 🗂 Project Structure
 ```
@@ -19,43 +19,46 @@ StateFork/
   ├── Dockerfile
   ├── README.md
   ├── app/                    # Sample applications
-  │   ├── stateful_logger.py   # Sample app 1: Stateful logger (Python)
-  │   ├── api_server.py        # Sample app 2: FastAPI server
-  │   ├── kv_store.py           # Key-value store for FastAPI server
-  │   ├── rdb.cpp               # Sample app 3: Random-access DB (C++)
-  │   └── Makefile             # For building the C++ app
-  ├── controller/            # Core controller logic
+  │   ├── stateful_logger.py
+  │   ├── api_server.py
+  │   └── ...
+  ├── controller/            # Core controller package
+  │   ├── __init__.py
   │   ├── base_env_manager.py
   │   ├── benchmark.py
   │   ├── criu_env_manager.py
-  │   ├── docker_env_manager.py
+  │   ├── container_env_manager.py
+  │   ├── hybrid_env_manager.py
   │   └── ...
   ├── interface/             # Interface entrypoints
-  │   └── shell.py             # Interactive CLI interface
-  ├── docs/
-  ├── logs/
-  ├── scripts/
+  │   ├── README.md
+  │   └── shell.py
+  ├── logs/                  # Benchmark and package analysis files
+  ├── scripts/               # Testing and utility scripts
   └── requirements.txt
 ```
 
 ## 🔧 Environment Manager Variants
-StateFork implements four concrete environment managers based on different use cases:
+StateFork provides multiple environment manager variants, each tailored to different backend technologies and lifecycle scenarios.
 
-| Class Name            | Backend     | Application Lifecycle             | Use Case                                                                                                        |
-|-----------------------|-------------|-----------------------------------|-----------------------------------------------------------------------------------------------------------------|
-| `DockerBuildManager`  | Docker      | Launches new container from image | Use when you want to build and run an app from scratch using a Dockerfile. Best for controlled environments.    |
-| `DockerAttachManager` | Docker      | Attaches to existing container    | Use when your app is already running in Docker and you want to snapshot it without rebuilding.                  |
-| `CRIULaunchManager`   | CRIU        | Launches and snapshots a process  | Use for long-running local processes (Python, C++) where the controller manages the lifecycle.                  |
-| `CRIUAttachManager`   | CRIU        | Attaches to existing process      | Use when your app is already running locally, and you just want to snapshot/restore via CRIU.                   |
-| `PodmanBuildManager`  | Podman+CRIU | Launches new container from image | Use when you want to run an app from a Dockerfile inside Podman with checkpoint/restore support via CRIU.       |
-| `PodmanHybridManager` | Podman+CRIU | Attaches to existing container    | 	Use when your app is already running inside Podman and you just want to perform management using this package. |
+They follow the naming convention `{Backend}{Action}Manager`, where:
+- **{Backend}** Backend type:
+  - `Container` for Docker/Podman (manages file system state only)
+  - `CRIU` for process-level CRIU checkpointing
+  - `Hybrid` for Podman + CRIU (captures both file and process states) 
+- **{Action}** Lifecycle mode:
+  - `Build` starts a fresh instance (for testing/dev)
+  - `Attach` connects to an existing container or process
 
 ### 🏭 Factory Method Support
-StateFork also provides a unified **Factory Method** to simplify the instantiation of different environment managers. 
+StateFork encourages a clean and extensible design by providing
+a unified **Factory Method** to simplify the instantiation of different environment managers. 
+
 Instead of importing backend-specific classes, users can create the appropriate manager by calling a single 
-`create_env_manager(method=..., **kwargs)` function. This improves usability, decouples interface logic from 
-implementation, and allows easy integration with other components (e.g., CLI, RPC, or agent wrappers). Simply 
-specify the backend type (e.g., `"criu_attach"`, `"docker_build"`) along with the required parameters, and the 
+`create_env_manager(method=..., **kwargs)` function. This design improves usability, 
+decouples interface logic from implementation, and enables easier CLI/RPC/agent integration.
+
+Simply specify the desired environment type (e.g., `"criu_attach"`, `"docker_build"`) along with the required parameters, and the 
 factory will handle the rest.
 ```python
 from controller import create_env_manager
@@ -63,16 +66,16 @@ manager = create_env_manager(method="criu_attach", target_pid=12345)
 ```
 See the full method table below for supported types and arguments.
 
-| Class Name             | Factory Call Name | Required Arguments                       | Optional Arguments                                              |
-|------------------------|-------------------|------------------------------------------|-----------------------------------------------------------------|
-| `DockerBuildManager`   | `docker_build`    |                                          | `base_image(str)`, `dockerfile_dir(str)`                        |
-| `DockerAttachManager`  | `docker_attach`   | `container_name(str)`, `base_image(str)` |                                                                 |
-| `CRIULaunchManager`    | `criu_launch`     |                                          | `work_dir(str)`, `command(List[str])`                           |
-| `CRIUAttachManager`    | `criu_attach`     | `target_pid(int)`                        | `work_dir(str)`                                                 |
-| `PodmanBuildManager`	  | `podman_build`	   | 	                                        | `container_name(str)`, `dockerfile_dir(str)`, `export_dir(str)` |
-| `PodmanHybridManager`	 | `podman_attach`	  | `container_name(str)`                    | `export_dir(str)`                                               |
-
-> 🧠 The system is extensible: you can easily plug in new backends or integrate with agents via RPC/Web APIs.
+| Factory Call Name | Env Manager            | Backend       | Required Arguments                       | Optional Arguments                                                                       |
+|-------------------|------------------------|---------------|------------------------------------------|------------------------------------------------------------------------------------------|
+| `docker_build`    | ContainerBuildManager  | Docker        |                                          | `dockerfile_dir(str)`, `base_image(str)`, `extra_args(List[str])`                        |
+| `docker_attach`   | ContainerAttachManager | Docker        | `container_name(str)`, `base_image(str)` | `extra_args(List[str])`                                                                  |
+| `podman_build`    | ContainerBuildManager  | Podman        |                                          | `dockerfile_dir(str)`, `base_image(str)`, `extra_args(List[str])`                        |
+| `podman_attach`   | ContainerAttachManager | Podman        | `container_name(str)`, `base_image(str)` | `extra_args(List[str])`                                                                  |
+| `criu_build`      | CRIUBuildManager       | CRIU          |                                          | `work_dir(str)`, `command(List[str])`                                                    |
+| `criu_attach`     | CRIUAttachManager      | CRIU          | `target_pid(int)`                        | `work_dir(str)`                                                                          |
+| `hybrid_build`    | HybridBuildManager     | Podman + CRIU |                                          | `container_name(str)`, `dockerfile_dir(str)`, `export_dir(str)`, `extra_args(List[str])` |
+| `hybrid_attach`   | HybridAttachManager    | Podman + CRIU | `container_name(str)`                    | `export_dir(str)`                                                                        |
 
 ## 🧪 Benchmarking Support
 StateFork automatically logs and benchmarks the performance of:
@@ -81,6 +84,7 @@ StateFork automatically logs and benchmarks the performance of:
 - Restore operations
 - Tree-based version tracking
 - Time-based operation history
+- Storage usage
 
 ## 🔧 Requirements
 ### Python Environment
@@ -94,57 +98,21 @@ pip install -r requirements.txt
 - Docker must be installed and running.
 - Make sure your user has permission to run Docker commands.
 
+### Podman Method
+- Podman must be installed and running.
+- Make sure your user has permission to run Podman commands.
+
 ### CRIU Method
 - Linux kernel compiled with CRIU support.
     - You may use the provided universal AKCS helper `scripts/kconfig.sh` with the `-r` option to generate a compatible kernel config.
 - Install `criu` tool from: https://launchpad.net/~criu/+archive/ubuntu/ppa or your system package manager.
 - Root or `sudo` privileges are required.
 
-### Podman Method
-- CRIU must be installed as above.
-- Podman must be installed and running.
+### Hybrid Method (Podman + CRIU)
+- CRIU and Podman must be installed as above.
 - Must use Root or `sudo` privileges to run Podman commands, as [the checkpoints currently work with root containers only](https://podman.io/docs/checkpoint).
 - Manually set the OCI runtime in `/usr/share/containers/containers.conf` to use **runc** instead of the default **crun**.
 
-
-## 🚀 Quick Start
-
-### 1. Run Your Target App
-
-Ensure your application is functional, e.g., for FastAPI:
-
-```bash
-uvicorn app.api_server:app --host 127.0.0.1 --port 8000
-```
-
-### 2. Launch the Interactive Shell
-```bash
-(sudo) python3 -m interface.shell --method docker
-```
-
-You will enter an interactive CLI:
-```
-StateFork Container Manager
-Commands: snapshot, restore <id>, step, tree, stats, history, exit
-
-StateFork > _
-```
-See the sample run screenshot below.
-
-### 3. Common Commands (in Interactive Shell)
-| Command	      | Description                                              |
-|---------------|----------------------------------------------------------|
-| snapshot	     | Take a snapshot of the current state                     |
-| restore {id}	 | Roll back to a given snapshot ID                         |
-| step	         | Snapshot and restore immediately to simulate progression |
-| tree	         | Show snapshot tree structure                             |
-| stats	        | Show benchmarking results                                |
-| history	      | Show operation history                                   |
-| exit	         | Clean up and exit the manager                            |
-
-### 📸 Sample Run
-![Sample Run Screenshot](./docs/sample_run.png)
-
 ---
-Want to contribute? File issues or PRs in the GitHub repo!
-> For advanced usage (e.g., RPC agent integration), see the `interface/` and `controller/` folders.
+For interface usage, see the `interface/README.md` file.
+> Want to contribute? File issues or PRs in the GitHub repo!
