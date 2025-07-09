@@ -1,0 +1,27 @@
+# Sample Data for Visualization
+
+> 0 : Snapshot
+> 1 : Stop Container
+> 2 : Restore Container
+> 3 : TCP
+> 4 : HTTP
+
+[Restore Phase]
+Snapshot, 0.120, 0
+Stop Old Container, 1.050, 1
+Restore New, 0.530, 2
+
+[Time B]
+Req 1, 0.400, 3
+Req 2, 0.300, 3
+Req 3, 0.200, 3
+
+[1st Requests]
+TCP Handshake, 0.300, 3
+HTTP, 1.080, 4
+TCP Close, 0.200, 3
+
+[2nd Requests]
+TCP Handshake, 0.300, 3
+HTTP, 1.080, 4
+TCP Close, 0.200, 3
