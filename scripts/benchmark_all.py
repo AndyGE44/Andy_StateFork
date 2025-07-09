@@ -10,12 +10,12 @@ REPEATS = 5
 ROUND = 2
 
 class OpType(Enum):
-    SNAPSHOT = 0
-    RESTORE = 1
-    NETWORK = 2
-    INTERNAL = 3
-    WAIT = 4
-    FAILURE = 5
+    SNAPSHOT = "blue"
+    RESTORE = "green"
+    NETWORK = "pink"
+    INTERNAL = "purple"
+    WAIT = "orange"
+    FAILURE = "gray"
 
 
 class TimelineManager:
@@ -23,6 +23,8 @@ class TimelineManager:
         self._filename = filename
         self._write_cache = []
         self._write(f"# Timeline Data for RunID {int(time.time())}")
+        self._write(f"# Created at UTC {time.strftime('%Y-%m-%d %H:%M:%S', time.gmtime())}")
+        self._write("# Duration unit is milliseconds(ms)")
 
     def _write(self, content: str):
         with open(self._filename, "a") as f:
@@ -37,13 +39,16 @@ class TimelineManager:
                 f.write("\n".join(self._write_cache) + "\n")
             self._write_cache = []
 
-    def log_section(self, section_name: str):
+    def log_section(self, section_name: str, compressed: bool = False):
+        if compressed:
+            section_name = f"*{section_name}"
         self._cache(f"[{section_name}]")
+        print(f"Section: {section_name}")
 
-    def log_step(self, step_name: str, duration: float, optype: OpType):
-        self._cache(f"{step_name}, {duration:.3f}, {optype.value}")
+    def log_step(self, step_name: str, sec: float, optype: OpType):
+        self._cache(f"{step_name}, {sec * 1000:.3f}, {optype.value}")
 
-    def log_color(self, color_id: int, color_name: str):
+    def log_color(self, color_id: str, color_name: str):
         self._cache(f">{color_id}: {color_name}")
 
     def log_default_color(self):
@@ -54,7 +59,7 @@ class TimelineManager:
 # Global instance of TimelineManager
 tm = TimelineManager()
 tm.log_default_color()
-
+tm.flush()
 
 def request_url(url: str) -> bool:
     """
@@ -67,7 +72,7 @@ def request_url(url: str) -> bool:
         else:
             return False
     except requests.RequestException as e:
-        print(f"Request failed for {url}: {e}")
+        # print(f"Request failed for {url}: {e}")
         return False
 
 
@@ -103,7 +108,7 @@ def test_time(env: EnvironmentManager) -> None:
         if not res:
             tm.log_step("Failed", duration, OpType.FAILURE)
         else:
-            tm.log_step("Succeed", duration, OpType.NETWORK)
+            tm.log_step("Req", duration, OpType.NETWORK)
 
     for r in range(ROUND):
         time.sleep(5)  # Allow socket to close gracefully
@@ -118,21 +123,21 @@ def test_time(env: EnvironmentManager) -> None:
         _ = env.create_env_from_snapshot(sid)
         tm.log_step("Restore", time.time() - start_restore, OpType.RESTORE)
 
-        tm.log_section("Wait for Recovery")
+        tm.log_section(f"Wait for Recovery {r+1}", compressed=True)
         first_success = wait_for_ready()
 
         tm.log_section(f"After Recovery {r+1}")
-        tm.log_step("First Success", first_success, OpType.NETWORK)
+        tm.log_step(" ", first_success, OpType.NETWORK)
 
         for k in range(1, REPEATS):
-            tm.log_section("Following Requests")
+            tm.log_section(f"Following Requests {r+1}.{k+1}")
             start_time = time.time()
             res = request_url(URL)
             duration = time.time() - start_time
             if not res:
-                tm.log_step(f"Req {k+1} failed", duration, OpType.FAILURE)
+                tm.log_step(f"Failed", duration, OpType.FAILURE)
             else:
-                tm.log_step(f"Req {k+1}", duration, OpType.NETWORK)
+                tm.log_step(f"Req", duration, OpType.NETWORK)
 
     env.cleanup()
     tm.flush()
@@ -155,4 +160,5 @@ if __name__ == "__main__":
         raise ValueError(f"Unsupported command method: {args.method}")
 
     print(f"Using {manager.backend} backend for environment management.")
+    time.sleep(5)  # Allow time for the environment to initialize
     test_time(manager)
