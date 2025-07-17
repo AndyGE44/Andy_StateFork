@@ -1,0 +1,202 @@
+##### Numpy array 0 GB (None)
+
+(.venv) root@node0:/users/alexxjk/StateFork# podman build -t manp .
+...
+
+(.venv) root@node0:/users/alexxjk/StateFork# podman run -d --rm --name man -p 8000:8000 -v /tmp:/tmp manp
+0ddb9116fbadcee76eabc0612b8ff18546a7704a746686787027d646ec8db1b9
+
+(.venv) root@node0:/users/alexxjk/StateFork# podman ps
+CONTAINER ID  IMAGE                  COMMAND               CREATED        STATUS        PORTS                   NAMES
+0ddb9116fbad  localhost/manp:latest  uvicorn app.api_s...  6 seconds ago  Up 7 seconds  0.0.0.0:8000->8000/tcp  man
+
+(.venv) root@node0:/users/alexxjk/StateFork# podman container checkpoint man -e /tmp/manp0.tar.zstd --leave-running --print-stats
+{
+    "podman_checkpoint_duration": 483358,
+    "container_statistics": [
+        {
+            "Id": "0ddb9116fbadcee76eabc0612b8ff18546a7704a746686787027d646ec8db1b9",
+            "runtime_checkpoint_duration": 294853,
+            "criu_statistics": {
+                "freezing_time": 100922,
+                "frozen_time": 175820,
+                "memdump_time": 24640,
+                "memwrite_time": 19069,
+                "pages_scanned": 8413,
+                "pages_written": 8238
+            }
+        }
+    ]
+}
+
+(.venv) root@node0:/users/alexxjk/StateFork# podman rm -f man
+man
+
+(.venv) root@node0:/users/alexxjk/StateFork# podman container restore -i /tmp/manp0.tar.zstd -n man --print-stats
+{
+    "podman_restore_duration": 462715,
+    "container_statistics": [
+        {
+            "Id": "364fd3cbb04fc0cc852399959e4dffa0dc566798b8fe1d1e716bf1a385748fbb",
+            "runtime_restore_duration": 204147,
+            "criu_statistics": {
+                "forking_time": 3,
+                "restore_time": 132228,
+                "pages_restored": 8238
+            }
+        }
+    ]
+}
+
+
+##### Numpy array 1 GB
+
+(.venv) root@node0:/users/alexxjk/StateFork# podman build -t manp .
+...
+
+(.venv) root@node0:/users/alexxjk/StateFork# podman run -d --rm --name man -p 8000:8000 -v /tmp:/tmp manp
+d969aef39948c9395a0b5f87ef11011e8beb67c5dcc761863627a7aba2c60108
+
+(.venv) root@node0:/users/alexxjk/StateFork# podman ps
+CONTAINER ID  IMAGE                  COMMAND               CREATED         STATUS         PORTS                   NAMES
+d969aef39948  localhost/manp:latest  uvicorn app.api_s...  18 seconds ago  Up 18 seconds  0.0.0.0:8000->8000/tcp  man
+
+(.venv) root@node0:/users/alexxjk/StateFork# podman container checkpoint man -e /tmp/manp1.tar.zstd --leave-running --print-stats
+{
+    "podman_checkpoint_duration": 2511647,
+    "container_statistics": [
+        {
+            "Id": "d969aef39948c9395a0b5f87ef11011e8beb67c5dcc761863627a7aba2c60108",
+            "runtime_checkpoint_duration": 972454,
+            "criu_statistics": {
+                "freezing_time": 103880,
+                "frozen_time": 851119,
+                "memdump_time": 689654,
+                "memwrite_time": 626895,
+                "pages_scanned": 272463,
+                "pages_written": 272133
+            }
+        }
+    ]
+}
+
+(.venv) root@node0:/users/alexxjk/StateFork# podman rm -f man
+man
+
+(.venv) root@node0:/users/alexxjk/StateFork# podman container restore -i /tmp/manp1.tar.zstd -n man --print-stats
+{
+    "podman_restore_duration": 5132984,
+    "container_statistics": [
+        {
+            "Id": "9137c8335356c2d5ab2099af62e1cfb10724c8b5b291afac78d9577b9e2c76d5",
+            "runtime_restore_duration": 573306,
+            "criu_statistics": {
+                "forking_time": 2,
+                "restore_time": 483222,
+                "pages_restored": 272133
+            }
+        }
+    ]
+}
+
+
+##### Numpy array 2 GB
+
+(.venv) root@node0:/users/alexxjk/StateFork# podman build -t manp .
+...
+
+(.venv) root@node0:/users/alexxjk/StateFork# podman run -d --rm --name man -p 8000:8000 -v /tmp:/tmp manp
+0931584eca1467ac9e4f97bfb48b0da229e61b4611aa812788d50de09d9e3961
+
+(.venv) root@node0:/users/alexxjk/StateFork# podman ps
+CONTAINER ID  IMAGE                  COMMAND               CREATED        STATUS        PORTS                   NAMES
+0931584eca14  localhost/manp:latest  uvicorn app.api_s...  6 seconds ago  Up 6 seconds  0.0.0.0:8000->8000/tcp  man
+
+(.venv) root@node0:/users/alexxjk/StateFork# podman container checkpoint man -e /tmp/manp2.tar.zstd --leave-running --print-stats
+{
+    "podman_checkpoint_duration": 5979745,
+    "container_statistics": [
+        {
+            "Id": "0931584eca1467ac9e4f97bfb48b0da229e61b4611aa812788d50de09d9e3961",
+            "runtime_checkpoint_duration": 1663483,
+            "criu_statistics": {
+                "freezing_time": 103629,
+                "frozen_time": 1542809,
+                "memdump_time": 1370256,
+                "memwrite_time": 1238579,
+                "pages_scanned": 534609,
+                "pages_written": 534277
+            }
+        }
+    ]
+}
+
+(.venv) root@node0:/users/alexxjk/StateFork# podman rm -f man
+man
+
+(.venv) root@node0:/users/alexxjk/StateFork# podman container restore -i /tmp/manp2.tar.zstd -n man --print-stats
+{
+    "podman_restore_duration": 9710946,
+    "container_statistics": [
+        {
+            "Id": "4c8d1f4db8b737b4a63401fb179a099220e914cc0a86b08258fd419a75d00151",
+            "runtime_restore_duration": 914976,
+            "criu_statistics": {
+                "forking_time": 2,
+                "restore_time": 832166,
+                "pages_restored": 534277
+            }
+        }
+    ]
+}
+
+
+##### Numpy array 3 GB
+
+(.venv) root@node0:/users/alexxjk/StateFork# podman build -t manp .
+...
+
+(.venv) root@node0:/users/alexxjk/StateFork# podman run -d --rm --name man -p 8000:8000 -v /tmp:/tmp manp
+2d3fffa6991a36ce7528da9c1f63244400cbb3a0917fa20dada5b62252c17bca
+
+(.venv) root@node0:/users/alexxjk/StateFork# podman ps
+CONTAINER ID  IMAGE                  COMMAND               CREATED         STATUS         PORTS                   NAMES
+8e0f11f29d35  localhost/manp:latest  uvicorn app.api_s...  26 seconds ago  Up 27 seconds  0.0.0.0:8000->8000/tcp  man
+
+(.venv) root@node0:/users/alexxjk/StateFork# podman container checkpoint man -e /tmp/manp3.tar.zstd --leave-running --print-stats
+{
+    "podman_checkpoint_duration": 7260267,
+    "container_statistics": [
+        {
+            "Id": "8e0f11f29d357f4ab02fd4ebad20ba303c3eeba8a361e7b9bb59fb74870b4760",
+            "runtime_checkpoint_duration": 2264553,
+            "criu_statistics": {
+                "freezing_time": 103709,
+                "frozen_time": 2144089,
+                "memdump_time": 1969450,
+                "memwrite_time": 1819859,
+                "pages_scanned": 796781,
+                "pages_written": 796448
+            }
+        }
+    ]
+}
+
+(.venv) root@node0:/users/alexxjk/StateFork# podman rm -f man
+man
+
+(.venv) root@node0:/users/alexxjk/StateFork# podman container restore -i /tmp/manp3.tar.zstd -n man --print-stats
+{
+    "podman_restore_duration": 12630981,
+    "container_statistics": [
+        {
+            "Id": "761a728c91bf5c7281d3ca7834ea14a3ef6c7b782cef59ddffd63e2fe4890459",
+            "runtime_restore_duration": 1223524,
+            "criu_statistics": {
+                "forking_time": 3,
+                "restore_time": 1144797,
+                "pages_restored": 796448
+            }
+        }
+    ]
+}
