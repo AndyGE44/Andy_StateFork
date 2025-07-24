@@ -1,5 +1,4 @@
 import logging
-import numpy as np
 import os
 import time
 import uvicorn
@@ -11,20 +10,33 @@ from app.kv_store import KVStore
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger(__name__)
+logger = logging.getLogger("app.FastAPI")
+
+# Set up logging to file
+log_file = "/tmp/fastapi_stats.txt"
+file_handler = logging.FileHandler(log_file)
+file_handler.setLevel(logging.INFO)
+formatter = logging.Formatter('%(asctime)s - %(message)s')
+file_handler.setFormatter(formatter)
+logger.addHandler(file_handler)
 
 # Global in-memory key-value store
 kv = KVStore(preload=True)  # Preload with some initial data for testing
 
-ARRAY_SIZE_MB = int(os.getenv("LARGE_ARRAY_MB", "1024"))  # default 1 GB
-NUM_FLOATS = (ARRAY_SIZE_MB * 1024 * 1024) // 8  # 8 bytes for double
+########## Memory Allocation for Testing ##########
+ARRAY_SIZE_MB = int(os.getenv("MEMORY_ARRAY_MB", "-1"))  # default None
 
-logger.info(f"Allocating large numpy array of size {ARRAY_SIZE_MB} MB...")
-heavy_array = np.ones(NUM_FLOATS, dtype=np.float64)
+if ARRAY_SIZE_MB > 0:
+    import numpy as np
 
-def log_memory_usage(filepath="/tmp/mem_stats.txt") -> dict:
+    NUM_FLOATS = (ARRAY_SIZE_MB * 1024 * 1024) // 8  # 8 bytes for double
+
+    logger.info(f"Allocating large Numpy array of size {ARRAY_SIZE_MB} MB...")
+    heavy_array = np.ones(NUM_FLOATS, dtype=np.float64)
+
+def log_memory_usage() -> dict:
     """
-    Logs current process memory usage (VmSize, VmRSS, VmPeak) to a file.
+    Logs the current process memory usage (VmSize, VmRSS, VmPeak) and returns the stats.
     """
     stats = {}
     with open("/proc/self/status", "r") as f:
@@ -33,16 +45,57 @@ def log_memory_usage(filepath="/tmp/mem_stats.txt") -> dict:
                 key, val = line.strip().split(":", 1)
                 stats[key] = val.strip()
 
-    with open(filepath, "a") as out:
-        out.write(f"[Memory Usage Report - {time.strftime('%Y-%m-%d %H:%M:%S')}]\n")
-        for key in ("VmSize", "VmRSS", "VmPeak"):
-            out.write(f"{key}: {stats.get(key, 'N/A')}\n")
+    for key in ("VmSize", "VmRSS", "VmPeak"):
+        logger.info(f"[Memory Usage Report] {key}: {stats.get(key, 'N/A')}\n")
 
     return stats
 
-
 ls = log_memory_usage()
-logger.info(f"Allocation complete. Memory usage: {ls}")
+logger.info(f"System reported memory usage: {ls}")
+
+############ Filesystem Writing for Testing ############
+
+FILE_SIZE_MB = int(os.getenv("FILE_SIZE_MB", "-1"))  # default None
+CHUNK_SIZE_MB = 128  # Max per file to avoid tar write-too-long issues
+FILE_DIR = "/app/files"
+
+if FILE_SIZE_MB > 0:
+    os.makedirs(FILE_DIR, exist_ok=True)
+    logger.info(f"Creating dummy files totaling {FILE_SIZE_MB} MB in {FILE_DIR}...")
+
+    num_chunks = (FILE_SIZE_MB + CHUNK_SIZE_MB - 1) // CHUNK_SIZE_MB
+    bytes_remaining = FILE_SIZE_MB * 1024 * 1024
+
+    for i in range(num_chunks):
+        chunk_path = os.path.join(FILE_DIR, f"chunk_{i:03d}.bin")
+        this_chunk_size = min(CHUNK_SIZE_MB * 1024 * 1024, bytes_remaining)
+        logger.info(f"Writing {this_chunk_size / (1024*1024):.2f}MB to {chunk_path}")
+
+        with open(chunk_path, "wb") as f:
+            for _ in range(this_chunk_size // (1024 * 1024)):
+                f.write(os.urandom(1024 * 1024))  # Write 1MB at a time
+
+        bytes_remaining -= this_chunk_size
+
+def log_file_info() -> int:
+    """
+    Logs the size of all generated chunk files and returns the total size in bytes.
+    """
+    if FILE_SIZE_MB <= 0:
+        return 0
+
+    total_size = 0
+    for fname in os.listdir(FILE_DIR):
+        path = os.path.join(FILE_DIR, fname)
+        total_size += os.path.getsize(path)
+
+    logger.info(f"[File Size Report] Total size of generated chunks: {total_size / (1024*1024):.2f}MB\n")
+    return total_size
+
+lf = log_file_info()
+logger.info(f"System reported internal file size: {lf / (1024*1024):.2f}MB")
+
+############ FastAPI application setup ############
 
 app = FastAPI(
     title="StateFork API service",
@@ -94,13 +147,25 @@ def list_all():
     """
     List all key-value pairs in the KV store.
     """
-    log_memory_usage()
-
     all_items = kv.all()
     count = len(all_items)
     if not all_items:
         return {"items": {}, "count": 0}
     return {"items": all_items, "count": count}
+
+@app.get("/stats", status_code=status.HTTP_200_OK)
+def get_stats():
+    """
+    Get memory usage and file size statistics for testing purposes.
+    """
+    memory_stats = log_memory_usage()
+    file_size = log_file_info()
+
+    return {
+        "file_size_kb": file_size / 1024 if file_size > 0 else 0,
+        **memory_stats,
+    }
+
 
 
 if __name__ == "__main__":

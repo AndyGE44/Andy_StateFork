@@ -1,201 +1,339 @@
-##### Numpy array 0 GB (None)
+##### Numpy array 0 GB, File size 0 GB [compress = zstd]
 
-(.venv) root@node0:/users/alexxjk/StateFork# podman build -t manp .
-...
-
-(.venv) root@node0:/users/alexxjk/StateFork# podman run -d --rm --name man -p 8000:8000 -v /tmp:/tmp manp
-0ddb9116fbadcee76eabc0612b8ff18546a7704a746686787027d646ec8db1b9
-
-(.venv) root@node0:/users/alexxjk/StateFork# podman ps
-CONTAINER ID  IMAGE                  COMMAND               CREATED        STATUS        PORTS                   NAMES
-0ddb9116fbad  localhost/manp:latest  uvicorn app.api_s...  6 seconds ago  Up 7 seconds  0.0.0.0:8000->8000/tcp  man
-
-(.venv) root@node0:/users/alexxjk/StateFork# podman container checkpoint man -e /tmp/manp0.tar.zstd --leave-running --print-stats
+(.venv) root@node0:/users/alexxjk/StateFork# podman container checkpoint man -e /tmp/manp0.tar.zstd -c zstd --leave-running --print-stats
 {
-    "podman_checkpoint_duration": 483358,
+    "podman_checkpoint_duration": 890580,
     "container_statistics": [
         {
-            "Id": "0ddb9116fbadcee76eabc0612b8ff18546a7704a746686787027d646ec8db1b9",
-            "runtime_checkpoint_duration": 294853,
+            "Id": "12e68752056f64c902362429f044d09b974f7f72c722f0418da551e4721c1aeb",
+            "runtime_checkpoint_duration": 388669,
             "criu_statistics": {
-                "freezing_time": 100922,
-                "frozen_time": 175820,
-                "memdump_time": 24640,
-                "memwrite_time": 19069,
-                "pages_scanned": 8413,
-                "pages_written": 8238
+                "freezing_time": 100640,
+                "frozen_time": 266218,
+                "memdump_time": 55233,
+                "memwrite_time": 41228,
+                "pages_scanned": 8366,
+                "pages_written": 8197
             }
         }
     ]
 }
-
-(.venv) root@node0:/users/alexxjk/StateFork# podman rm -f man
-man
 
 (.venv) root@node0:/users/alexxjk/StateFork# podman container restore -i /tmp/manp0.tar.zstd -n man --print-stats
 {
-    "podman_restore_duration": 462715,
+    "podman_restore_duration": 719183,
     "container_statistics": [
         {
-            "Id": "364fd3cbb04fc0cc852399959e4dffa0dc566798b8fe1d1e716bf1a385748fbb",
-            "runtime_restore_duration": 204147,
+            "Id": "ea11757b9e08b9977cb074033275a7935f412d2a57480cacda033706174e2bf5",
+            "runtime_restore_duration": 281776,
             "criu_statistics": {
-                "forking_time": 3,
-                "restore_time": 132228,
-                "pages_restored": 8238
+                "forking_time": 5,
+                "restore_time": 185422,
+                "pages_restored": 8197
             }
         }
     ]
 }
 
 
-##### Numpy array 1 GB
+##### Numpy array 0 GB, File size 0 GB [compress = gzip]
 
-(.venv) root@node0:/users/alexxjk/StateFork# podman build -t manp .
-...
-
-(.venv) root@node0:/users/alexxjk/StateFork# podman run -d --rm --name man -p 8000:8000 -v /tmp:/tmp manp
-d969aef39948c9395a0b5f87ef11011e8beb67c5dcc761863627a7aba2c60108
-
-(.venv) root@node0:/users/alexxjk/StateFork# podman ps
-CONTAINER ID  IMAGE                  COMMAND               CREATED         STATUS         PORTS                   NAMES
-d969aef39948  localhost/manp:latest  uvicorn app.api_s...  18 seconds ago  Up 18 seconds  0.0.0.0:8000->8000/tcp  man
-
-(.venv) root@node0:/users/alexxjk/StateFork# podman container checkpoint man -e /tmp/manp1.tar.zstd --leave-running --print-stats
+(.venv) root@node0:/users/alexxjk/StateFork# podman container checkpoint man -e /tmp/manp0.tar.gz -c gzip --leave-running --print-stats
 {
-    "podman_checkpoint_duration": 2511647,
+    "podman_checkpoint_duration": 563758,
     "container_statistics": [
         {
-            "Id": "d969aef39948c9395a0b5f87ef11011e8beb67c5dcc761863627a7aba2c60108",
-            "runtime_checkpoint_duration": 972454,
+            "Id": "12e68752056f64c902362429f044d09b974f7f72c722f0418da551e4721c1aeb",
+            "runtime_checkpoint_duration": 385019,
             "criu_statistics": {
-                "freezing_time": 103880,
-                "frozen_time": 851119,
-                "memdump_time": 689654,
-                "memwrite_time": 626895,
-                "pages_scanned": 272463,
-                "pages_written": 272133
+                "freezing_time": 100621,
+                "frozen_time": 262867,
+                "memdump_time": 55424,
+                "memwrite_time": 41608,
+                "pages_scanned": 8366,
+                "pages_written": 8197
             }
         }
     ]
 }
 
-(.venv) root@node0:/users/alexxjk/StateFork# podman rm -f man
-man
-
-(.venv) root@node0:/users/alexxjk/StateFork# podman container restore -i /tmp/manp1.tar.zstd -n man --print-stats
+(.venv) root@node0:/users/alexxjk/StateFork# podman container restore -i /tmp/manp0.tar.gz -n man --print-stats
 {
-    "podman_restore_duration": 5132984,
+    "podman_restore_duration": 890572,
     "container_statistics": [
         {
-            "Id": "9137c8335356c2d5ab2099af62e1cfb10724c8b5b291afac78d9577b9e2c76d5",
-            "runtime_restore_duration": 573306,
+            "Id": "8f73bc6a4a04587b9c6c00ede21f2ff975ea77977c4a93fa38d510b310d7672e",
+            "runtime_restore_duration": 272913,
             "criu_statistics": {
-                "forking_time": 2,
-                "restore_time": 483222,
-                "pages_restored": 272133
+                "forking_time": 5,
+                "restore_time": 180544,
+                "pages_restored": 8197
             }
         }
     ]
 }
 
 
-##### Numpy array 2 GB
+##### Numpy array 0 GB, File size 0 GB [compress = none]
 
-(.venv) root@node0:/users/alexxjk/StateFork# podman build -t manp .
-...
-
-(.venv) root@node0:/users/alexxjk/StateFork# podman run -d --rm --name man -p 8000:8000 -v /tmp:/tmp manp
-0931584eca1467ac9e4f97bfb48b0da229e61b4611aa812788d50de09d9e3961
-
-(.venv) root@node0:/users/alexxjk/StateFork# podman ps
-CONTAINER ID  IMAGE                  COMMAND               CREATED        STATUS        PORTS                   NAMES
-0931584eca14  localhost/manp:latest  uvicorn app.api_s...  6 seconds ago  Up 6 seconds  0.0.0.0:8000->8000/tcp  man
-
-(.venv) root@node0:/users/alexxjk/StateFork# podman container checkpoint man -e /tmp/manp2.tar.zstd --leave-running --print-stats
+(.venv) root@node0:/users/alexxjk/StateFork# podman container checkpoint man -e /tmp/manp0.tar -c none --leave-running --print-stats
 {
-    "podman_checkpoint_duration": 5979745,
+    "podman_checkpoint_duration": 514703,
     "container_statistics": [
         {
-            "Id": "0931584eca1467ac9e4f97bfb48b0da229e61b4611aa812788d50de09d9e3961",
-            "runtime_checkpoint_duration": 1663483,
+            "Id": "ee41943fecef50a92b315226517a9bcbfdfb410cc79d24899ae7d40d812c5b58",
+            "runtime_checkpoint_duration": 357116,
             "criu_statistics": {
-                "freezing_time": 103629,
-                "frozen_time": 1542809,
-                "memdump_time": 1370256,
-                "memwrite_time": 1238579,
-                "pages_scanned": 534609,
-                "pages_written": 534277
+                "freezing_time": 100741,
+                "frozen_time": 234657,
+                "memdump_time": 54299,
+                "memwrite_time": 40982,
+                "pages_scanned": 8366,
+                "pages_written": 8197
             }
         }
     ]
 }
 
-(.venv) root@node0:/users/alexxjk/StateFork# podman rm -f man
-man
-
-(.venv) root@node0:/users/alexxjk/StateFork# podman container restore -i /tmp/manp2.tar.zstd -n man --print-stats
+(.venv) root@node0:/users/alexxjk/StateFork# podman container restore -i /tmp/manp0.tar -n man --print-stats
 {
-    "podman_restore_duration": 9710946,
+    "podman_restore_duration": 498224,
     "container_statistics": [
         {
-            "Id": "4c8d1f4db8b737b4a63401fb179a099220e914cc0a86b08258fd419a75d00151",
-            "runtime_restore_duration": 914976,
+            "Id": "e3b029e3a0180f8fb9e3c9284aee3927d3624194a5e1287d41d11e7b32f62e2e",
+            "runtime_restore_duration": 272290,
             "criu_statistics": {
-                "forking_time": 2,
-                "restore_time": 832166,
-                "pages_restored": 534277
+                "forking_time": 5,
+                "restore_time": 159841,
+                "pages_restored": 8197
             }
         }
     ]
 }
 
 
-##### Numpy array 3 GB
+##### Numpy array 1 GB, File size 0 GB [compress = none]
 
-(.venv) root@node0:/users/alexxjk/StateFork# podman build -t manp .
-...
-
-(.venv) root@node0:/users/alexxjk/StateFork# podman run -d --rm --name man -p 8000:8000 -v /tmp:/tmp manp
-2d3fffa6991a36ce7528da9c1f63244400cbb3a0917fa20dada5b62252c17bca
-
-(.venv) root@node0:/users/alexxjk/StateFork# podman ps
-CONTAINER ID  IMAGE                  COMMAND               CREATED         STATUS         PORTS                   NAMES
-8e0f11f29d35  localhost/manp:latest  uvicorn app.api_s...  26 seconds ago  Up 27 seconds  0.0.0.0:8000->8000/tcp  man
-
-(.venv) root@node0:/users/alexxjk/StateFork# podman container checkpoint man -e /tmp/manp3.tar.zstd --leave-running --print-stats
+(.venv) root@node0:/users/alexxjk/StateFork# podman container checkpoint man -e /tmp/manp10.tar -c none --leave-running --print-stats
 {
-    "podman_checkpoint_duration": 7260267,
+    "podman_checkpoint_duration": 4991192,
     "container_statistics": [
         {
-            "Id": "8e0f11f29d357f4ab02fd4ebad20ba303c3eeba8a361e7b9bb59fb74870b4760",
-            "runtime_checkpoint_duration": 2264553,
+            "Id": "59712a80e94b82d00f29587f6f4b76d71c0ab217f1beb6c860be44ec0d3b3545",
+            "runtime_checkpoint_duration": 1747771,
             "criu_statistics": {
-                "freezing_time": 103709,
-                "frozen_time": 2144089,
-                "memdump_time": 1969450,
-                "memwrite_time": 1819859,
-                "pages_scanned": 796781,
-                "pages_written": 796448
+                "freezing_time": 104221,
+                "frozen_time": 1621398,
+                "memdump_time": 1373653,
+                "memwrite_time": 1324750,
+                "pages_scanned": 271817,
+                "pages_written": 271458
             }
         }
     ]
 }
 
-(.venv) root@node0:/users/alexxjk/StateFork# podman rm -f man
-man
-
-(.venv) root@node0:/users/alexxjk/StateFork# podman container restore -i /tmp/manp3.tar.zstd -n man --print-stats
+(.venv) root@node0:/users/alexxjk/StateFork# podman container restore -i /tmp/manp10.tar -n man --print-stats
 {
-    "podman_restore_duration": 12630981,
+    "podman_restore_duration": 3785451,
     "container_statistics": [
         {
-            "Id": "761a728c91bf5c7281d3ca7834ea14a3ef6c7b782cef59ddffd63e2fe4890459",
-            "runtime_restore_duration": 1223524,
+            "Id": "041a4751cf252a315999d076e85492d5b4502f2ee841047fc8df6fbbed570324",
+            "runtime_restore_duration": 967081,
             "criu_statistics": {
-                "forking_time": 3,
-                "restore_time": 1144797,
-                "pages_restored": 796448
+                "forking_time": 4,
+                "restore_time": 837083,
+                "pages_restored": 271458
+            }
+        }
+    ]
+}
+
+
+##### Numpy array 2 GB, File size 0 GB [compress = none]
+
+(.venv) root@node0:/users/alexxjk/StateFork# podman container checkpoint man -e /tmp/manp20.tar -c none --leave-running --print-stats
+{
+    "podman_checkpoint_duration": 9236561,
+    "container_statistics": [
+        {
+            "Id": "0127a68f0731e452080e9617be13fb4cea739006da67ec83514a9262aceb7dfb",
+            "runtime_checkpoint_duration": 3091941,
+            "criu_statistics": {
+                "freezing_time": 104312,
+                "frozen_time": 2966873,
+                "memdump_time": 2712983,
+                "memwrite_time": 2624377,
+                "pages_scanned": 533950,
+                "pages_written": 533604
+            }
+        }
+    ]
+}
+
+(.venv) root@node0:/users/alexxjk/StateFork# podman container restore -i /tmp/manp20.tar -n man --print-stats
+{
+    "podman_restore_duration": 6165852,
+    "container_statistics": [
+        {
+            "Id": "589efc91d4eb95a5bc774cdf508beb326cb97a5afb95fb66036a5f5b8a49a0d6",
+            "runtime_restore_duration": 1537815,
+            "criu_statistics": {
+                "forking_time": 4,
+                "restore_time": 1402380,
+                "pages_restored": 533604
+            }
+        }
+    ]
+}
+
+
+##### Numpy array 0 GB, File size 1 GB [compress = none]
+
+(.venv) root@node0:/users/alexxjk/StateFork# podman container checkpoint man -e /tmp/manp01.tar -c none --leave-running --print-stats
+{
+    "podman_checkpoint_duration": 5917545,
+    "container_statistics": [
+        {
+            "Id": "33de7f0274727fa305b3d05433868a749dff1b67654815141d814c9fb11869af",
+            "runtime_checkpoint_duration": 380060,
+            "criu_statistics": {
+                "freezing_time": 100617,
+                "frozen_time": 258099,
+                "memdump_time": 54954,
+                "memwrite_time": 41709,
+                "pages_scanned": 8645,
+                "pages_written": 8462
+            }
+        }
+    ]
+}
+
+(.venv) root@node0:/users/alexxjk/StateFork# podman container restore -i /tmp/manp01.tar -n man --print-stats
+{
+    "podman_restore_duration": 5289599,
+    "container_statistics": [
+        {
+            "Id": "13d912bae9c1525358660bcb57ff897f87c56848cc2620c0deab59eb6592e6d8",
+            "runtime_restore_duration": 283945,
+            "criu_statistics": {
+                "forking_time": 4,
+                "restore_time": 183082,
+                "pages_restored": 8462
+            }
+        }
+    ]
+}
+
+
+##### Numpy array 0 GB, File size 2 GB [compress = none]
+
+(.venv) root@node0:/users/alexxjk/StateFork# podman container checkpoint man -e /tmp/manp02.tar -c none --leave-running --print-stats
+{
+    "podman_checkpoint_duration": 11505229,
+    "container_statistics": [
+        {
+            "Id": "10b66f0fab958c422388e26312283881a898239ddcb78591ec244ca57715c906",
+            "runtime_checkpoint_duration": 373188,
+            "criu_statistics": {
+                "freezing_time": 100834,
+                "frozen_time": 250589,
+                "memdump_time": 54960,
+                "memwrite_time": 41753,
+                "pages_scanned": 8613,
+                "pages_written": 8434
+            }
+        }
+    ]
+}
+
+(.venv) root@node0:/users/alexxjk/StateFork# podman container restore -i /tmp/manp02.tar -n man --print-stats
+{
+    "podman_restore_duration": 10182509,
+    "container_statistics": [
+        {
+            "Id": "39e1a0cefe30d9c8a8b8172bf62a0efbc6b4a9e5f718e07d2d9ac8610bca096a",
+            "runtime_restore_duration": 290412,
+            "criu_statistics": {
+                "forking_time": 4,
+                "restore_time": 180863,
+                "pages_restored": 8434
+            }
+        }
+    ]
+}
+
+
+##### Numpy array 1 GB, File size 1 GB [compress = none]
+
+(.venv) root@node0:/users/alexxjk/StateFork# podman container checkpoint man -e /tmp/manp11.tar -c none --leave-running --print-stats
+{
+    "podman_checkpoint_duration": 10298493,
+    "container_statistics": [
+        {
+            "Id": "2c79042395936c769d4004f0681c1ef7e423282d31aa15ae24263bb730aad459",
+            "runtime_checkpoint_duration": 1738836,
+            "criu_statistics": {
+                "freezing_time": 104209,
+                "frozen_time": 1612715,
+                "memdump_time": 1361462,
+                "memwrite_time": 1311794,
+                "pages_scanned": 272147,
+                "pages_written": 271792
+            }
+        }
+    ]
+}
+
+(.venv) root@node0:/users/alexxjk/StateFork# podman container restore -i /tmp/manp11.tar -n man --print-stats
+{
+    "podman_restore_duration": 8535725,
+    "container_statistics": [
+        {
+            "Id": "1dac35bc1791d4c1c847760d31f3c48261531eff60adba02cbeeb1fee1fe052e",
+            "runtime_restore_duration": 932831,
+            "criu_statistics": {
+                "forking_time": 6,
+                "restore_time": 828187,
+                "pages_restored": 271792
+            }
+        }
+    ]
+}
+
+
+##### Numpy array 2 GB, File size 2 GB [compress = none]
+
+(.venv) root@node0:/users/alexxjk/StateFork# podman container checkpoint man -e /tmp/manp22.tar -c none --leave-running --print-stats
+{
+    "podman_checkpoint_duration": 17956036,
+    "container_statistics": [
+        {
+            "Id": "aaed6fe7945b9a832b355be6ebffdfb59d6fcf6fe35c48d767058e4f0ac740fc",
+            "runtime_checkpoint_duration": 3091466,
+            "criu_statistics": {
+                "freezing_time": 104349,
+                "frozen_time": 2965462,
+                "memdump_time": 2703202,
+                "memwrite_time": 2611762,
+                "pages_scanned": 534290,
+                "pages_written": 533937
+            }
+        }
+    ]
+}
+
+(.venv) root@node0:/users/alexxjk/StateFork# podman container restore -i /tmp/manp22.tar -n man --print-stats
+{
+    "podman_restore_duration": 15384277,
+    "container_statistics": [
+        {
+            "Id": "3f8785445fae5424d97192abd2cb2bd6c8f815b5e5daa5433c1e8801ff689881",
+            "runtime_restore_duration": 1529454,
+            "criu_statistics": {
+                "forking_time": 5,
+                "restore_time": 1421455,
+                "pages_restored": 533937
             }
         }
     ]

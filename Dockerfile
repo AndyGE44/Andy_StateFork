@@ -24,5 +24,9 @@ COPY . .
 # Expose port
 EXPOSE 8000
 
+# Set environment variables for the application
+ENV MEMORY_ARRAY_MB=1024
+ENV FILE_SIZE_MB=1024
+
 # Command to run the API server
 CMD ["uvicorn", "app.api_server:app", "--host", "0.0.0.0", "--port", "8000"]
