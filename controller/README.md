@@ -52,20 +52,20 @@ the time and size statistics for various operations. A sample output is shown be
 BenchmarkResult(
     time={
         'snapshot': Statistics(
-            count=6, total=0.123, mean=0.123, median=0.123, min=0.123, max=0.123, unit='seconds'
+            count=6, total=0.738, mean=0.123, median=0.123, min=0.123, max=0.123, unit='seconds'
         ),
         'container': Statistics(
-            count=6, total=0.123, mean=0.123, median=0.123, min=0.123, max=0.123, unit='seconds'
+            count=5, total=0.615, mean=0.123, median=0.123, min=0.123, max=0.123, unit='seconds'
         ),
         'restore': Statistics(
-            count=6, total=0.123, mean=0.123, median=0.123, min=0.123, max=0.123, unit='seconds'
+            count=2, total=0.246, mean=0.123, median=0.123, min=0.123, max=0.123, unit='seconds'
         )
     },
     size={
         'FileSizeCalculator #1': Statistics(
             count=7, total=2048, mean=1024, median=1024, min=512, max=1536, unit='bytes'
         ),
-        'ImageCalculator #2': Statistics(
+        'ImageCalculator #1': Statistics(
             count=3, total=2048, mean=1024, median=1024, min=512, max=1536, unit='bytes'
         )
     }
