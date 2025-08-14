@@ -2,7 +2,7 @@ from .base_env_manager import EnvironmentManager
 from .container_env_manager import ContainerAttachManager, ContainerBuildManager
 from .criu_env_manager import CRIUAttachManager, CRIUBuildManager
 from .hybrid_env_manager import HybridAttachManager, HybridBuildManager
-from .ckptlite_env_manager import CheckpointLiteAttachManager
+from .ckptlite_env_manager import CheckpointLiteAttachManager, CheckpointLiteBuildManager
 from .benchmark import BenchmarkStats, BenchmarkResult, Statistics
 
 from typing import Literal
@@ -12,7 +12,7 @@ EnvType = Literal[
     "docker_build", "docker_attach",
     "podman_build", "podman_attach",
     "hybrid_build", "hybrid_attach",
-    "ckptlite_attach"
+    "ckpt_build", "ckpt_attach"
 ]
 
 """
@@ -69,7 +69,12 @@ def create_env_manager(method: EnvType, **kwargs) -> EnvironmentManager:
             container_name=kwargs["container_name"],
             export_dir=kwargs.get("export_dir", "/tmp/statefork_podman")
         )
-    elif method == "ckptlite_attach":
+    elif method == "ckpt_build":
+        return CheckpointLiteBuildManager(
+            init_dir=kwargs.get("init_dir"),
+            command=kwargs.get("command", "default")
+        )
+    elif method == "ckpt_attach":
         return CheckpointLiteAttachManager(
             target_pid=kwargs["target_pid"],
             session_id=kwargs["session_id"]

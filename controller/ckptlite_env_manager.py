@@ -1,11 +1,12 @@
+import os
 import subprocess
 import time
 import uuid
 import logging
-from typing import Optional
+from typing import Optional, List
 from .base_env_manager import EnvironmentManager, SnapshotNode
 
-logger = logging.getLogger("EnvManager.CRIU")
+logger = logging.getLogger("EnvManager.CkptLite")
 
 
 class CheckpointLiteAttachManager(EnvironmentManager):
@@ -76,3 +77,63 @@ class CheckpointLiteAttachManager(EnvironmentManager):
         except subprocess.CalledProcessError as e:
             logger.error(f"CheckpointLite force cleanup failed: {e}")
             return
+
+class CheckpointLiteBuildManager(CheckpointLiteAttachManager):
+    """
+    CheckpointLiteBuildManager is a specialized Checkpoint-lite EnvironmentManager that builds a new session.
+    """
+    def __init__(self,
+                 init_dir: Optional[str] = None,
+                 command: Optional[List[str] | str] = "default"
+                 ):
+        if init_dir is None:
+            target_dir = os.getcwd()
+        else:
+            target_dir = os.path.abspath(init_dir)
+
+        logger.info("Creating a new Checkpoint-lite session...")
+        init_process = subprocess.run(
+            ["./checkpoint-lite", "init", target_dir, "--quiet"],
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
+            check=True
+        )
+
+        output = init_process.stdout.strip()
+        try:
+            sid, self._work_dir = output.split(",", 1)
+        except ValueError:
+            raise RuntimeError(f"Unexpected output format: {output}")
+
+        logger.info(f"New session {sid} with work directory '{self._work_dir}' created.")
+
+        if command is None:
+            logger.info(f"User skipped the APP launch.")
+            super().__init__(target_pid=-1, session_id=sid)
+            return
+
+        if command == "default":
+            command = [
+                "uvicorn", "app.api_server:app",
+                "--host", "127.0.0.1",
+                "--port", "8000",
+                "--no-access-log"
+            ]
+        elif isinstance(command, str):
+            command = command.split()
+
+        logger.info(f"Starting initial APP...")
+        proc = subprocess.Popen(
+            command,
+            cwd=self._work_dir,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE
+        )
+        time.sleep(2)  # wait for app to initialize
+
+        super().__init__(target_pid=proc.pid, session_id=sid)
+
+    @property
+    def work_dir(self) -> str:
+        return self._work_dir

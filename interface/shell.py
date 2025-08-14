@@ -15,9 +15,7 @@ def main(args):
     elif args.method == "hybrid":
         manager = create_env_manager("hybrid_build")
     elif args.method == "ckpt":
-        if args.target_pid is None or args.session_id is None:
-            raise ValueError("For CheckpointLite, --target-pid and --session-id must be provided.")
-        manager = create_env_manager("ckptlite_attach", target_pid=args.target_pid, session_id=args.session_id)
+        manager = create_env_manager("ckpt_build")
     else:
         raise ValueError(f"Unsupported command method: {args.method}")
 
@@ -79,10 +77,6 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Environment Manager Launcher")
     parser.add_argument("--method", choices=["docker", "criu", "podman", "hybrid", "ckpt"], default="docker",
                         help="Choose the environment manager backend")
-    parser.add_argument("-p", "--target-pid", type=int, default=None,
-                        help="Target PID for CheckpointLite manager (required if method is 'ckpt')")
-    parser.add_argument("-s", "--session-id", type=str, default=None,
-                        help="Session ID for CheckpointLite manager (required if method is 'ckpt')")
     args_ns = parser.parse_args()
     logging.basicConfig(level=logging.INFO)
     main(args_ns)

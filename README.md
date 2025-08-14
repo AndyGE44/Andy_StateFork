@@ -78,8 +78,8 @@ See the full method table below for supported types and arguments.
 | `criu_attach`     | CRIUAttachManager           | CRIU            | `target_pid(int)`                        | `work_dir(str)`                                                                          |
 | `hybrid_build`    | HybridBuildManager          | Podman + CRIU   |                                          | `container_name(str)`, `dockerfile_dir(str)`, `export_dir(str)`, `extra_args(List[str])` |
 | `hybrid_attach`   | HybridAttachManager         | Podman + CRIU   | `container_name(str)`                    | `export_dir(str)`                                                                        |
-| `ckptlite_build`  | NOT AVAILABLE YET !!!       | /               | /                                        | /                                                                                        |
-| `ckptlite_attach` | CheckpointLiteAttachManager | Checkpoint-lite | `target_pid(int)`, `session_id(str)`     |                                                                                          |
+| `ckpt_build`      | CheckpointLiteBuildManager  | Checkpoint-lite |                                          | `init_dir(str)`, `command(List[str])`                                                    |
+| `ckpt_attach`     | CheckpointLiteAttachManager | Checkpoint-lite | `target_pid(int)`, `session_id(str)`     |                                                                                          |
 
 ## 🧪 Benchmarking Support
 StateFork automatically logs and benchmarks the performance of:
