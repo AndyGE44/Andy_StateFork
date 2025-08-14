@@ -38,7 +38,7 @@ class CheckpointLiteAttachManager(EnvironmentManager):
         start = time.time()
         try:
             subprocess.run(
-                ["checkpoint-lite", "create", self.session_id, str(self.target_pid), snapshot_id],
+                ["./checkpoint-lite", "create", self.session_id, str(self.target_pid), snapshot_id],
                 check=True
             )
             elapsed = time.time() - start
@@ -57,7 +57,7 @@ class CheckpointLiteAttachManager(EnvironmentManager):
         start = time.time()
         try:
             subprocess.run(
-                ["checkpoint-lite", "restore", self.session_id, snapshot_id],
+                ["./checkpoint-lite", "restore", self.session_id, snapshot_id],
                 check=True
             )
             elapsed = time.time() - start
@@ -70,7 +70,7 @@ class CheckpointLiteAttachManager(EnvironmentManager):
         logger.info("Shutting down CheckpointLite environment...")
         try:
             subprocess.run(
-                ["checkpoint-lite", "cleanup", self.session_id, "--force"],
+                ["./checkpoint-lite", "cleanup", self.session_id, "--force"],
                 check=True
             )
         except subprocess.CalledProcessError as e:
