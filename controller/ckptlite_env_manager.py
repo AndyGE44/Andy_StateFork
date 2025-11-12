@@ -6,6 +6,7 @@ import uuid
 import logging
 from typing import Optional, List
 from .base_env_manager import EnvironmentManager, SnapshotNode
+from .benchmark import FileSizeCalculator
 
 logger = logging.getLogger("EnvManager.CkptLite")
 
@@ -166,6 +167,12 @@ class CheckpointLiteBuildManager(CheckpointLiteAttachManager):
         time.sleep(2)  # wait for app to initialize
 
         super().__init__(target_pid=proc.pid, session_id=sid)
+
+        # Attach the FileSizeCalculator to the both directories
+        overlay_dir = os.path.join(self._work_dir, "../overlays")
+        criu_dir = os.path.join(self._work_dir, "../criu")
+        self._stats.attach_size_calculator(FileSizeCalculator(overlay_dir))
+        self._stats.attach_size_calculator(FileSizeCalculator(criu_dir))
 
     @property
     def work_dir(self) -> str:
