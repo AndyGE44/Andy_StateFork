@@ -86,13 +86,12 @@ class CheckpointLiteAttachManager(EnvironmentManager):
 
         # Convert command into a sequence of arguments (checkpoint-lite expects args list)
         if isinstance(command, str):
-            cmd_args = shlex.split(command)
+            cmd_str = command
         else:
-            cmd_args = list(command)
+            cmd_str = shlex.join(command)
 
         # Execute `command` via `./checkpoint-lite exec <session_id> <args...>`.
-        exec_args = ["./checkpoint-lite", "exec", self.session_id] + cmd_args
-
+        exec_args = ["./checkpoint-lite", "exec", self.session_id, "sh", "-c", cmd_str]
         try:
             proc = subprocess.run(
                 exec_args,
