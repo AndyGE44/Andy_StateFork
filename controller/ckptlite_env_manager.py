@@ -126,12 +126,20 @@ class CheckpointLiteAttachManager(EnvironmentManager):
         logger.info("Shutting down CheckpointLite environment...")
         try:
             subprocess.run(
-                ["./checkpoint-lite", "cleanup", self.session_id, "--force"],
+                ["./checkpoint-lite", "cleanup", self.session_id],
                 check=True
             )
         except subprocess.CalledProcessError as e:
-            logger.error(f"CheckpointLite force cleanup failed: {e}")
-            return
+            logger.error(f"CheckpointLite cleanup failed: {e}")
+            logger.info("Attempting force cleanup...")
+            try:
+                subprocess.run(
+                    ["./checkpoint-lite", "cleanup", self.session_id, "--force"],
+                    check=True
+                )
+            except subprocess.CalledProcessError as e:
+                logger.error(f"CheckpointLite force cleanup failed: {e}")
+                return
 
     def _core_exec(self, command: List[str] | str, timeout: Optional[float]) -> tuple[int, str, str]:
         if not self.session_id:

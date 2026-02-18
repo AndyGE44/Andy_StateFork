@@ -153,7 +153,7 @@ class EnvironmentManager(ABC):
                 return False
 
             self._stats.add_entry("restore", snapshot_id, elapsed)
-            logger.info(f"Restored physical snapshot {snapshot_id}")
+            logger.info(f"Restored physical snapshot {snapshot_id} in {elapsed:.4f}s")
 
             self.current_snapshot_id = snapshot_id
             self.last_snapshot_id = snapshot_id

@@ -15,6 +15,7 @@ AVAILABLE_COMMANDS = [
     "history",
     "storage",
     "exit",
+    "set",
 ]
 
 
@@ -49,15 +50,28 @@ def build_manager(method: str, decider_name: str, threshold: float):
     return create_env_manager(
         method_key,
         decider=decider_instance,
+        build=True,
     )
 
-
-def interactive_shell(manager):
+def print_welcome_message(manager):
     print("==========================================")
     print("StateFork Container Manager - Interactive Shell")
     print(f"Using {manager.__class__.__name__} with {manager.backend} backend")
     print("")
     print(f"Available commands: {', '.join(AVAILABLE_COMMANDS)}")
+
+def execute_command(manager, command_text):
+    rc, out, err = manager.exec_command(command_text)
+
+    if out.strip():
+        print("--- stdout ---")
+        print(out.strip())
+    if err.strip():
+        print("--- stderr ---")
+        print(err.strip())
+
+def interactive_shell(manager):
+    print_welcome_message(manager)
 
     need_cmd_heading = True
 
@@ -91,15 +105,7 @@ def interactive_shell(manager):
             if not command_text:
                 print("Usage: cmd <command>")
                 continue
-
-            rc, out, err = manager.exec_command(command_text)
-
-            if out:
-                print("--- stdout ---")
-                print(out)
-            if err:
-                print("--- stderr ---")
-                print(err)
+            execute_command(manager, command_text)
 
         elif cmd == "tree":
             print(manager.print_snapshot_tree())
@@ -139,13 +145,7 @@ def interactive_shell(manager):
                 print(f"Available commands: {', '.join(AVAILABLE_COMMANDS)}")
                 continue
             # If heading is turned off, treat unknown commands as direct commands to execute
-            rc, out, err = manager.exec_command(cmd)
-            if out:
-                print("--- stdout ---")
-                print(out)
-            if err:
-                print("--- stderr ---")
-                print(err)
+            execute_command(manager, cmd)
 
 
 def main():
