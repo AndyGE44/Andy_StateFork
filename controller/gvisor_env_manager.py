@@ -10,7 +10,6 @@ from decider import Decider
 
 logger = logging.getLogger("EnvManager.GVisor")
 
-
 class GvisorAttachManager(EnvironmentManager):
     def __init__(self,
                  container_name: str,
@@ -107,7 +106,7 @@ class GvisorBuildManager(GvisorAttachManager):
                  decider: Optional[Decider] = None,
                  ):
         """
-        Initialize a container-based environment by building from a Dockerfile.
+        Initialize a gVisor-based environment by building from a Dockerfile.
 
         :param dockerfile_dir: Path to the directory containing the Dockerfile.
             Example: "/home/user/projects/myapp/"
