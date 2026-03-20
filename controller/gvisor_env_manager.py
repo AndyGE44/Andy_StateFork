@@ -9,6 +9,8 @@ from .base_env_manager import EnvironmentManager, SnapshotNode
 from decider import Decider
 
 logger = logging.getLogger("EnvManager.GVisor")
+#TODO: STILL NEED TO DO CALCULATOR!
+#TODO: also need to check messages for step etc, since not in a new container
 
 class GvisorAttachManager(EnvironmentManager):
     def __init__(self,
@@ -121,14 +123,16 @@ class GvisorBuildManager(GvisorAttachManager):
         if extra_args is None:
             extra_args = ["-v", "/tmp:/tmp"]
 
+        container_name = "statefork_active"
+
         logger.info(f"Building base gVisor image '{base_image}' from directory '{dockerfile_dir}'...")
         subprocess.run(["docker", "build", "-t", base_image, dockerfile_dir], stdout=subprocess.DEVNULL, check=True)
 
         logger.info("Creating initial environment from base image...")
-        cmd = ["docker", "run", "-d", "--runtime", "runsc", "--network", "host", "--name", self.container_name] + self.extra_args + [base_image]
+        cmd = ["docker", "run", "-d", "--runtime", "runsc", "--network", "host", "--name", container_name] + extra_args + [base_image]
         try:
             subprocess.run(cmd, stdout=subprocess.DEVNULL, check=True)
         except subprocess.CalledProcessError:
             raise RuntimeError("Failed to create initial environment from base image.")
 
-        super().__init__(container_name="statefork_active", base_image=base_image, extra_args=extra_args, decider=decider)
+        super().__init__(container_name=container_name, base_image=base_image, extra_args=extra_args, decider=decider)

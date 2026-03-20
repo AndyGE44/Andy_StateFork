@@ -3,6 +3,7 @@ from .container_env_manager import ContainerAttachManager, ContainerBuildManager
 from .criu_env_manager import CRIUAttachManager, CRIUBuildManager
 from .hybrid_env_manager import HybridAttachManager, HybridBuildManager
 from .ckptlite_env_manager import CheckpointLiteAttachManager, CheckpointLiteBuildManager
+from .gvisor_env_manager import GvisorBuildManager
 from .benchmark import BenchmarkStats, BenchmarkResult, Statistics
 from decider.decider import Decider, RandomDecider, AlwaysFalseDecider, AlwaysTrueDecider
 
