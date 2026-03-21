@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import os
 import logging
 import subprocess
 import time
@@ -7,10 +8,30 @@ import uuid
 from typing import Optional, List
 from .base_env_manager import EnvironmentManager, SnapshotNode
 from decider import Decider
+from .benchmark import FileSizeCalculator
 
 logger = logging.getLogger("EnvManager.GVisor")
-#TODO: STILL NEED TO DO CALCULATOR!
-#TODO: also need to check messages for step etc, since not in a new container
+#TODO: need to check messages for step etc, since not in a new container
+#TODO: need to figure out why networking curl isn't working
+
+class GvisorCalculator(FileSizeCalculator):
+    def __init__(self, container_name: str):
+        try:
+            docker_root = subprocess.check_output(
+                ["docker", "info", "--format", "{{.DockerRootDir}}"],
+                text=True
+            ).strip()
+
+            container_id = subprocess.check_output(
+                ["docker", "inspect", container_name, "--format", "{{.Id}}"],
+                text=True
+            ).strip()
+        except subprocess.CalledProcessError as e:
+            logger.error(f"Failed to get Docker info for GvisorCalculator: {e}")
+            raise RuntimeError("Failed to initialize GvisorCalculator due to Docker command failure.")
+
+        root_dir = os.path.join(docker_root, "containers", container_id, "checkpoints")
+        super().__init__(root_dir=root_dir)
 
 class GvisorAttachManager(EnvironmentManager):
     def __init__(self,
@@ -41,8 +62,8 @@ class GvisorAttachManager(EnvironmentManager):
         self.current_snapshot_id = sid
         self.last_snapshot_id = sid
 
-        # TODO: Attach image calculator?
-
+        gc = GvisorCalculator(self.container_name)
+        self._stats.attach_size_calculator(gc)
 
     def _core_snapshot(self) -> tuple[Optional[str], float]:
         snapshot_id = str(uuid.uuid4())[:8]
@@ -121,7 +142,7 @@ class GvisorBuildManager(GvisorAttachManager):
             base_image = f"statefork_{str(uuid.uuid4())[:4]}:base"
 
         if extra_args is None:
-            extra_args = ["-v", "/tmp:/tmp"]
+            extra_args = ["-p", "8080:8080", "-v", "/tmp:/tmp"]
 
         container_name = "statefork_active"
 
