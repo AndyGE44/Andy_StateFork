@@ -4,6 +4,7 @@ from .criu_env_manager import CRIUAttachManager, CRIUBuildManager
 from .hybrid_env_manager import HybridAttachManager, HybridBuildManager
 from .ckptlite_env_manager import CheckpointLiteAttachManager, CheckpointLiteBuildManager
 from .gvisor_env_manager import GvisorBuildManager
+from .firecracker_env_manager import FireBuildManager
 from .benchmark import BenchmarkStats, BenchmarkResult, Statistics
 from decider.decider import Decider, RandomDecider, AlwaysFalseDecider, AlwaysTrueDecider
 
@@ -14,7 +15,9 @@ EnvType = Literal[
     "docker_build", "docker_attach",
     "podman_build", "podman_attach",
     "hybrid_build", "hybrid_attach",
-    "ckpt_build", "ckpt_attach"
+    "ckpt_build", "ckpt_attach",
+    "gvisor_build",
+    "firecracker_build"
 ]
 
 """
@@ -97,6 +100,10 @@ def create_env_manager(method: EnvType, **kwargs) -> EnvironmentManager:
             dockerfile_dir=kwargs.get("dockerfile_dir", "."),
             extra_args=kwargs.get("extra_args"),
             decider=kwargs.get("decider")
+        )
+    elif method == "firecracker_build":
+        return FireBuildManager(
+            firecracker_dir=kwargs.get("firecracker_dir", "fire_dir")
         )
     else:
         raise ValueError(f"Unknown method: {method}")

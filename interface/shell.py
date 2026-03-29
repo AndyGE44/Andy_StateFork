@@ -27,6 +27,7 @@ BACKEND_MAP = {
     "hybrid": "hybrid_build",
     "ckpt": "ckpt_build",
     "gvisor": "gvisor_build",
+    "firecracker": "firecracker_build"
 }
 
 
