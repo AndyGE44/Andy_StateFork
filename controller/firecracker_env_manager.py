@@ -11,47 +11,70 @@ from pathlib import Path
 import json
 
 logger = logging.getLogger("EnvManager.Firecracker")
-
+# note: could use diff snapshots and walk snapshot tree on each resume? 
+# this will add extra steps to merge, but shouldn't increase actual restore time from final snapshot
+# however merge probably would decrease the storage used
+# so maybe try to switch to diff/merge later?
 
 class FireAttachManager(EnvironmentManager):
     def __init__(self,
-                 api_socket: Optional[str] = "/tmp/firecracker.socket",
-                 snapshot_base: Optional[str] = "./snapshot_base",
-                 memfile_base: Optional[str] = "./memfile_base",
-                 decider: Optional[Decider] = None,
-                 ):
+                api_socket: Optional[str] = "/tmp/firecracker.socket",
+                arch,
+                tap_dev,
+                tap_ip,
+                mask,
+                fc_mac,
+                checkpoint_dir: Optional[str] = "fire_ckpts"
+                decider: Optional[Decider] = None,
+                ):
         """
         Initialize a Firecracker microVM.
         """
         super().__init__(backend_name="Firecracker", decider=decider)
 
-        """
         self.api_socket = api_socket
-        self.snapshot_base = snapshot_base
-        self.memfile_base = memfile_base
+        self.arch = arch
+        self.tap_dev = tap_dev
+        self.tap_ip = tap_ip
+        self.mask = mask
+        self.fs_mac = fc_mac
+        self.checkpoint_dir = Path(checkpoint_dir)
+        self.snap_dir = self.checkpoint_dir / "snap"
+        self.mem_dir = self.checkpoint_dir / "mem"
 
-        logger.info(f"Recognized base image prefix: {self.image_prefix}")
-        self.snapshots["base"] = base_image
+        self.snapshot_dir.mkdir(parents=True, exist_ok=True)
+        self.mem_dir.mkdir(parents=True, exist_ok=True)
+
+        # base snapshot
+        sid, _ = self._core_snapshot()
+        if sid is None:
+            raise RuntimeError("Failed to create initial snapshot.")
 
         # Init the Tree Graph
-        self.snapshot_graph["base"] = SnapshotNode(snapshot_id="base", parent_id=None)
-        self.current_snapshot_id = "base"
-        self.last_snapshot_id = "base"
-        """
+        self.snapshot_graph[sid] = SnapshotNode(snapshot_id=sid, parent_id=None)
+        self.current_snapshot_id = sid
+        self.last_snapshot_id = sid
 
     def __pause_vm(self) -> bool:
-        # TODO: Pause the microVM
-        #   curl --unix-socket self.api_socket -i \
-        #     -X PATCH 'http://localhost/vm' \
-        #     -H 'Accept: application/json' \
-        #     -H 'Content-Type: application/json' \
-        #     -d '{
-        #             "state": "Paused"
-        #     }'
-        # validate the result
-        return True
+        cmd = [
+            "sudo", "curl", "-s",
+            "-o", "/dev/null",
+            "-w", "%{http_code}",
+            "--unix-socket", str(self.api_socket),
+            "-X", "PATCH", "http://localhost/vm",
+            "-H", "Accept: application/json",
+            "-H", "Content-Type: application/json",
+            "-d", '{"state": "Paused"}'
+        ]
+        result = subprocess.run(cmd, capture_output=True, text=True)
+        if result.stdout.strip().startswith("2"):
+            return True
+        logger.error(f"Failed to pause VM, HTTP status: {result.stdout.strip()}")
+        return False
 
     def __resume_vm(self) -> bool:
+
+        
         # TODO: Resume the microVM
         #   curl --unix-socket self.api_socket -i \
         #     -X PATCH 'http://localhost/vm' \
@@ -65,11 +88,11 @@ class FireAttachManager(EnvironmentManager):
 
     def _core_snapshot(self) -> tuple[Optional[str], float]:
         snapshot_id = str(uuid.uuid4())[:8]
-        # TODO: Create snapshot paths
-        #   snapshot_path = self.snapshot_base / snapshot_id
-        #   mem_file_path = self.memfile_base / snapshot_id
-        #   May need to `mkdir` those directories?
 
+        snapshot_path = self.snap_dir / snapshot_id
+        mem_file_path = self.mem_dir / snapshot_id
+
+        # Ask: should start include pause and resume?
         start = time.time()
         # TODO: Seems we have to pause the VM before taking a snapshot
         ok = self.__pause_vm()
@@ -85,7 +108,7 @@ class FireAttachManager(EnvironmentManager):
         #             "mem_file_path": "mem_file_path"
         #     }'
 
-        # TODO: Restore it so it is in the same semantics of other backends
+        # ask: should resume time be included in the snapshot elapsed?
         ok = self.__resume_vm()
 
         elapsed = time.time() - start
@@ -104,8 +127,10 @@ class FireAttachManager(EnvironmentManager):
         #   snapshot_path = self.snapshot_base / snapshot_name
         #   mem_file_path = self.memfile_base / snapshot_name
 
-        # TODO: Not sure do we need to pause & remove existing VM if running?
+        # Pause VM first
         ok = self.__pause_vm()
+        if not ok:
+            return None, None
 
         start = time.time()
         # TODO: Load VM states
@@ -150,7 +175,7 @@ class FireAttachManager(EnvironmentManager):
         return result.returncode, result.stdout, result.stderr
 
     @staticmethod
-    def _start_microvm(firecracker_dir, ARCH, TAP_DEV, TAP_IP, MASK, FC_MAC, API_SOCKET):
+    def __start_microvm(firecracker_dir, ARCH, TAP_DEV, TAP_IP, MASK, FC_MAC, API_SOCKET):
         """
         Heavily based off of the "Getting Started" guide: https://github.com/firecracker-microvm/firecracker/blob/main/docs/getting-started.md
         """
@@ -327,7 +352,7 @@ class FireBuildManager(FireAttachManager):
         FC_MAC = "06:00:AC:10:00:02" # corresponds to TAP_IP and MASK
         API_SOCKET = "/tmp/firecracker.socket"
         logger.info("Creating Firecracker microVM...")
-        ssh_key, firecracker_process = FireAttachManager._start_microvm(firecracker_dir, ARCH=ARCH, TAP_DEV=TAP_DEV, TAP_IP=TAP_IP, MASK=MASK, FC_MAC=FC_MAC, API_SOCKET=API_SOCKET)
+        ssh_key, firecracker_process = FireAttachManager.__start_microvm(firecracker_dir, ARCH=ARCH, TAP_DEV=TAP_DEV, TAP_IP=TAP_IP, MASK=MASK, FC_MAC=FC_MAC, API_SOCKET=API_SOCKET)
 
         # ping to verify that it is running
         result = subprocess.run(
@@ -345,6 +370,4 @@ class FireBuildManager(FireAttachManager):
         # step should pause, resume to kill, kill tap, and reboot into a new loaded one?
         # restore means kill current, kill tap, and then reboot into a newly loaded one?
 
-        super().__init__(api_socket=API_SOCKET, decider=decider)
-
-
+        super().__init__(api_socket=API_SOCKET, arch=ARCH, tap_dev=TAP_DEV, tap_ip= TAP_IP, mask=MASK, fc_mac=FC_MAC, decider=decider)
