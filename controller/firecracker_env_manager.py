@@ -14,13 +14,13 @@ logger = logging.getLogger("EnvManager.Firecracker")
 
 class FireAttachManager(EnvironmentManager):
     def __init__(self,
-                api_socket: Optional[str] = "/tmp/firecracker.socket",
                 arch,
                 tap_dev,
                 tap_ip,
                 mask,
                 fc_mac,
-                checkpoint_dir: Optional[str] = "fire_ckpts"
+                api_socket: Optional[str] = "/tmp/firecracker.socket",
+                checkpoint_dir: Optional[str] = "fire_ckpts",
                 decider: Optional[Decider] = None,
                 ):
         """
@@ -126,35 +126,32 @@ class FireAttachManager(EnvironmentManager):
             logger.warning(f"Snapshot ID {snapshot_id} not found.")
             return None, 0.0
 
-        # TODO: Construct image paths
-        #   snapshot_path = self.snapshot_base / snapshot_name
-        #   mem_file_path = self.memfile_base / snapshot_name
-
-        # Pause VM first
-        ok = self.__pause_vm()
-        if not ok:
-            return None, None
+        # TODO: clean up old vm:
+        # issue ssh reboot
+        # remove old socket
+        # start up new non-config'd vm
 
         start = time.time()
-        # TODO: Load VM states
-        #   curl --unix-socket self.api_socket -i \
-        #     -X PUT 'http://localhost/snapshot/load' \
-        #     -H  'Accept: application/json' \
-        #     -H  'Content-Type: application/json' \
-        #     -d '{
-        #             "snapshot_path": "snapshot_path",
-        #             "mem_backend": {
-        #                 "backend_path": "mem_file_path",
-        #                 "backend_type": "File"
-        #             },
-        #             "track_dirty_pages": true,
-        #             "resume_vm": false
-        #     }'
+        cmd = [
+            "sudo", "curl", "-s",
+            "-o", "/dev/null",
+            "-w", "%{http_code}",
+            "--unix-socket", str(self.api_socket),
+            "-X", "PUT", "http://localhost/snapshot/load",
+            "-H", "Accept: application/json",
+            "-H", "Content-Type: application/json",
+            "-d", json.dumps({
+                "snapshot_path": snapshot_path,
+                "mem_file_path": mem_file_path,
+                "resume_vm": True
+            })
+        ]
+        result = subprocess.run(cmd, capture_output=True, text=True)
+        if result.stdout.strip() == ("400"):
+            logger.error(f"Failed to load snapshot")
+            return None, None
 
         elapsed = time.time() - start
-
-        # TODO: Restore
-        ok = self.__resume_vm()
 
         return snapshot_name, elapsed
 
@@ -178,7 +175,7 @@ class FireAttachManager(EnvironmentManager):
         return result.returncode, result.stdout, result.stderr
 
     @staticmethod
-    def __start_microvm(firecracker_dir, ARCH, TAP_DEV, TAP_IP, MASK, FC_MAC, API_SOCKET):
+    def __start_full_microvm(firecracker_dir, ARCH, TAP_DEV, TAP_IP, MASK, FC_MAC, API_SOCKET):
         """
         Heavily based off of the "Getting Started" guide: https://github.com/firecracker-microvm/firecracker/blob/main/docs/getting-started.md
         """
@@ -355,7 +352,7 @@ class FireBuildManager(FireAttachManager):
         FC_MAC = "06:00:AC:10:00:02" # corresponds to TAP_IP and MASK
         API_SOCKET = "/tmp/firecracker.socket"
         logger.info("Creating Firecracker microVM...")
-        ssh_key, firecracker_process = FireAttachManager.__start_microvm(firecracker_dir, ARCH=ARCH, TAP_DEV=TAP_DEV, TAP_IP=TAP_IP, MASK=MASK, FC_MAC=FC_MAC, API_SOCKET=API_SOCKET)
+        ssh_key, firecracker_process = FireAttachManager.__start_full_microvm(firecracker_dir, ARCH=ARCH, TAP_DEV=TAP_DEV, TAP_IP=TAP_IP, MASK=MASK, FC_MAC=FC_MAC, API_SOCKET=API_SOCKET)
 
         # ping to verify that it is running
         result = subprocess.run(
@@ -366,11 +363,4 @@ class FireBuildManager(FireAttachManager):
             raise RuntimeError("Firecracker API socket is not responsive")
         logger.info("Firecracker VM is running")
 
-        # on exit: issue reboot into ssh
-
-        # seems that we can't restore into same vm?
-        # so snapshot pauses and then resumes
-        # step should pause, resume to kill, kill tap, and reboot into a new loaded one?
-        # restore means kill current, kill tap, and then reboot into a newly loaded one?
-
-        super().__init__(api_socket=API_SOCKET, arch=ARCH, tap_dev=TAP_DEV, tap_ip= TAP_IP, mask=MASK, fc_mac=FC_MAC, decider=decider)
+        super().__init__(arch=ARCH, tap_dev=TAP_DEV, tap_ip= TAP_IP, mask=MASK, fc_mac=FC_MAC, api_socket=API_SOCKET, decider=decider)
