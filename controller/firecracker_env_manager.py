@@ -11,10 +11,6 @@ from pathlib import Path
 import json
 
 logger = logging.getLogger("EnvManager.Firecracker")
-# note: could use diff snapshots and walk snapshot tree on each resume? 
-# this will add extra steps to merge, but shouldn't increase actual restore time from final snapshot
-# however merge probably would decrease the storage used
-# so maybe try to switch to diff/merge later?
 
 class FireAttachManager(EnvironmentManager):
     def __init__(self,
@@ -67,24 +63,27 @@ class FireAttachManager(EnvironmentManager):
             "-d", '{"state": "Paused"}'
         ]
         result = subprocess.run(cmd, capture_output=True, text=True)
-        if result.stdout.strip().startswith("2"):
+        if result.stdout.strip() == ("204"):
             return True
-        logger.error(f"Failed to pause VM, HTTP status: {result.stdout.strip()}")
+        logger.error(f"Failed to pause VM")
         return False
 
     def __resume_vm(self) -> bool:
-
-        
-        # TODO: Resume the microVM
-        #   curl --unix-socket self.api_socket -i \
-        #     -X PATCH 'http://localhost/vm' \
-        #     -H 'Accept: application/json' \
-        #     -H 'Content-Type: application/json' \
-        #     -d '{
-        #             "state": "Resumed"
-        #     }'
-        # validate the result
-        return True
+        cmd = [
+            "sudo", "curl", "-s",
+            "-o", "/dev/null",
+            "-w", "%{http_code}",
+            "--unix-socket", str(self.api_socket),
+            "-X", "PATCH", "http://localhost/vm",
+            "-H", "Accept: application/json",
+            "-H", "Content-Type: application/json",
+            "-d", '{"state": "Resumed"}'
+        ]
+        result = subprocess.run(cmd, capture_output=True, text=True)
+        if result.stdout.strip() == ("204"):
+            return True
+        logger.error(f"Failed to resume VM")
+        return False
 
     def _core_snapshot(self) -> tuple[Optional[str], float]:
         snapshot_id = str(uuid.uuid4())[:8]
@@ -92,29 +91,33 @@ class FireAttachManager(EnvironmentManager):
         snapshot_path = self.snap_dir / snapshot_id
         mem_file_path = self.mem_dir / snapshot_id
 
-        # Ask: should start include pause and resume?
         start = time.time()
-        # TODO: Seems we have to pause the VM before taking a snapshot
         ok = self.__pause_vm()
 
-        # TODO: Create microVm snapshot
-        #   curl --unix-socket self.api_socket -i \
-        #     -X PUT 'http://localhost/snapshot/create' \
-        #     -H  'Accept: application/json' \
-        #     -H  'Content-Type: application/json' \
-        #     -d '{
-        #             "snapshot_type": "Full",
-        #             "snapshot_path": "snapshot_path",
-        #             "mem_file_path": "mem_file_path"
-        #     }'
+        # Do full for now
+        cmd = [
+            "sudo", "curl", "-s",
+            "-o", "/dev/null",
+            "-w", "%{http_code}",
+            "--unix-socket", str(self.api_socket),
+            "-X", "PUT", "http://localhost/snapshot/create",
+            "-H", "Accept: application/json",
+            "-H", "Content-Type: application/json",
+            "-d", json.dumps({
+                "snapshot_type": "Full", # add option to switch to "Diff"?
+                "snapshot_path": snapshot_path,
+                "mem_file_path": mem_file_path
+            })
+        ]
+        result = subprocess.run(cmd, capture_output=True, text=True)
+        if result.stdout.strip() == ("400"):
+            logger.error(f"Failed to snapshot VM")
+            return False
 
-        # ask: should resume time be included in the snapshot elapsed?
         ok = self.__resume_vm()
-
         elapsed = time.time() - start
 
         self.snapshots[snapshot_id] = snapshot_id
-
         return snapshot_id, elapsed
 
     def _core_create_env(self, snapshot_id: str) -> tuple[Optional[str], float]:
