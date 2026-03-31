@@ -9,16 +9,17 @@ from .base_env_manager import EnvironmentManager, SnapshotNode
 from decider import Decider
 from pathlib import Path
 import json
+import paramiko # need to pip install
+import ipaddress
 
 logger = logging.getLogger("EnvManager.Firecracker")
 
 class FireAttachManager(EnvironmentManager):
     def __init__(self,
-                arch,
-                tap_dev,
-                tap_ip,
-                mask,
-                fc_mac,
+                microvm_ip,
+                fire_process,
+                fire_binary,
+                key,
                 api_socket: Optional[str] = "/tmp/firecracker.socket",
                 checkpoint_dir: Optional[str] = "fire_ckpts",
                 decider: Optional[Decider] = None,
@@ -29,17 +30,14 @@ class FireAttachManager(EnvironmentManager):
         super().__init__(backend_name="Firecracker", decider=decider)
 
         self.api_socket = api_socket
-        self.arch = arch
-        self.tap_dev = tap_dev
-        self.tap_ip = tap_ip
-        self.mask = mask
-        self.fs_mac = fc_mac
-        self.checkpoint_dir = Path(checkpoint_dir)
-        self.snap_dir = self.checkpoint_dir / "snap"
-        self.mem_dir = self.checkpoint_dir / "mem"
+        self.microvm_ip = microvm_ip
+        self.key = key
+        self.fire_binary = fire_binary
+        self.fire_process = fire_process
 
-        self.snapshot_dir.mkdir(parents=True, exist_ok=True)
-        self.mem_dir.mkdir(parents=True, exist_ok=True)
+        self.checkpoint_dir = Path(checkpoint_dir)
+        self.checkpoint_dir.mkdir(parents=True, exist_ok=True)
+        
 
         # base snapshot
         sid, _ = self._core_snapshot()
@@ -88,13 +86,18 @@ class FireAttachManager(EnvironmentManager):
     def _core_snapshot(self) -> tuple[Optional[str], float]:
         snapshot_id = str(uuid.uuid4())[:8]
 
-        snapshot_path = self.snap_dir / snapshot_id
-        mem_file_path = self.mem_dir / snapshot_id
+        snapshot_dir = self.checkpoint_dir / snapshot_id
+        snapshot_dir.mkdir(parents=True, exist_ok=True)
+        snapshot_path = snapshot_dir / "snap" 
+        mem_file_path = snapshot_dir / "mem"
 
         start = time.time()
         ok = self.__pause_vm()
+        if not ok:
+            logger.error("Failed to pause VM before snapshot")
+            return None, None
 
-        # Do full for now
+        # Do full for now -- allow user to pass in choice for diff?
         cmd = [
             "sudo", "curl", "-s",
             "-o", "/dev/null",
@@ -105,16 +108,20 @@ class FireAttachManager(EnvironmentManager):
             "-H", "Content-Type: application/json",
             "-d", json.dumps({
                 "snapshot_type": "Full", # add option to switch to "Diff"?
-                "snapshot_path": snapshot_path,
-                "mem_file_path": mem_file_path
+                "snapshot_path": str(snapshot_path),
+                "mem_file_path": str(mem_file_path)
             })
         ]
         result = subprocess.run(cmd, capture_output=True, text=True)
         if result.stdout.strip() == ("400"):
             logger.error(f"Failed to snapshot VM")
-            return False
+            return None, None
 
         ok = self.__resume_vm()
+        if not ok:
+            logger.error("Failed to resume VM after snapshot")
+            return None, None
+
         elapsed = time.time() - start
 
         self.snapshots[snapshot_id] = snapshot_id
@@ -126,12 +133,34 @@ class FireAttachManager(EnvironmentManager):
             logger.warning(f"Snapshot ID {snapshot_id} not found.")
             return None, 0.0
 
-        # TODO: clean up old vm:
-        # issue ssh reboot
-        # remove old socket
-        # start up new non-config'd vm
-
         start = time.time()
+        # issue ssh reboot
+        key = paramiko.RSAKey.from_private_key_file(self.key)
+        ssh = paramiko.SSHClient()
+        ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
+        ssh.connect(hostname=self.microvm_ip, username="root", pkey=key)
+        stdin, stdout, stderr = ssh.exec_command("reboot")
+        ssh.close()
+        # close firecracker process
+        self.fire_process.terminate()
+        self.fire_process.wait()
+
+        # remove old socket and start up non-config'd microvm
+        try:
+            subprocess.run(["sudo", "rm", "-f", self.api_socket], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+            firecracker_process = subprocess.Popen(
+                ["sudo", str(self.fire_binary), "--api-sock", self.api_socket],
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+                stdin=subprocess.DEVNULL
+            )
+        except Exception:
+            raise RuntimeError(f"Failed to start firecracker process on socket {self.api_socket}")
+
+        # restore
+        snapshot_path = self.checkpoint_dir / snapshot_id / "snap"
+        mem_path = self.checkpoint_dir / snapshot_id / "mem"
+
         cmd = [
             "sudo", "curl", "-s",
             "-o", "/dev/null",
@@ -141,8 +170,8 @@ class FireAttachManager(EnvironmentManager):
             "-H", "Accept: application/json",
             "-H", "Content-Type: application/json",
             "-d", json.dumps({
-                "snapshot_path": snapshot_path,
-                "mem_file_path": mem_file_path,
+                "snapshot_path": str(snapshot_path),
+                "mem_file_path": str(mem_path),
                 "resume_vm": True
             })
         ]
@@ -165,17 +194,25 @@ class FireAttachManager(EnvironmentManager):
         #   `ssh` with the command?
         #   If it is hard to do so, just make sure the VM can run the default FastAPi workload is enough for MicroBenchmark
 
-        result = subprocess.run(
-            cmd,
-            capture_output=True,
-            text=True,
-            timeout=timeout,
-        )
+        key = paramiko.RSAKey.from_private_key_file(self.key)
+        ssh = paramiko.SSHClient()
+        ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
 
-        return result.returncode, result.stdout, result.stderr
+        try:
+            ssh.connect(hostname=self.microvm_ip, username="root", pkey=key)
+            stdin, stdout, stderr = ssh.exec_command(command)
+            exit_status = stdout.channel.recv_exit_status()
+
+            stdout_str = stdout.read().decode()
+            stderr_str = stderr.read().decode()
+
+        finally:
+            ssh.close()
+
+        return exit_status, stdout_str, stderr_str
 
     @staticmethod
-    def __start_full_microvm(firecracker_dir, ARCH, TAP_DEV, TAP_IP, MASK, FC_MAC, API_SOCKET):
+    def _start_full_microvm(firecracker_dir, ARCH, TAP_DEV, TAP_IP, MASK, FC_MAC, API_SOCKET):
         """
         Heavily based off of the "Getting Started" guide: https://github.com/firecracker-microvm/firecracker/blob/main/docs/getting-started.md
         """
@@ -225,7 +262,7 @@ class FireAttachManager(EnvironmentManager):
             id_rsa = firecracker_dir / f"ubuntu-{ubuntu_version}.id_rsa"
 
             if not id_rsa.exists():
-                subprocess.check_call(f"ssh-keygen -f {id_rsa} -N ''", shell=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+                subprocess.check_call(f"ssh-keygen -t rsa -b 4096 -m PEM -f {id_rsa} -N ''", shell=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
                 if id_rsa.exists():
                     logger.info(f"SSH Key set up: {id_rsa}")
                 else:
@@ -233,7 +270,7 @@ class FireAttachManager(EnvironmentManager):
             else:
                 logger.info(f"Using SSH Key: {id_rsa}")
 
-            if not rootfs.exists():
+            if not rootfs.exists(): # buggy if created new id_rsa but rootfs alr. exists
                 squashfs = firecracker_dir / f"ubuntu-{ubuntu_version}.squashfs.upstream"
                 squashfs_root = firecracker_dir / "squashfs-root"
                 subprocess.check_call(f'wget -q -O {squashfs} "https://s3.amazonaws.com/spec.ccfc.min/{latest_ubuntu_key}"', shell=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
@@ -333,13 +370,12 @@ class FireAttachManager(EnvironmentManager):
         except Exception:
             raise RuntimeError(f"Failed to start firecracker process on socket {API_SOCKET}")
 
-        return id_rsa, "firecracker_process"
+        return id_rsa, firecracker_process, firecracker_binary
 
 class FireBuildManager(FireAttachManager):
     def __init__(self,
                  firecracker_dir: str = ".",
-                 snapshot_base: Optional[str] = "./snapshot_base",
-                 memfile_base: Optional[str] = "./memfile_base",
+                 ckpt_dir: Optional[str] = "./fire_ckpts",
                  decider: Optional[Decider] = None,
                  ):
         """
@@ -352,7 +388,11 @@ class FireBuildManager(FireAttachManager):
         FC_MAC = "06:00:AC:10:00:02" # corresponds to TAP_IP and MASK
         API_SOCKET = "/tmp/firecracker.socket"
         logger.info("Creating Firecracker microVM...")
-        ssh_key, firecracker_process = FireAttachManager.__start_full_microvm(firecracker_dir, ARCH=ARCH, TAP_DEV=TAP_DEV, TAP_IP=TAP_IP, MASK=MASK, FC_MAC=FC_MAC, API_SOCKET=API_SOCKET)
+        ssh_key, firecracker_process, firecracker_binary = FireAttachManager._start_full_microvm(firecracker_dir, ARCH=ARCH, TAP_DEV=TAP_DEV, TAP_IP=TAP_IP, MASK=MASK, FC_MAC=FC_MAC, API_SOCKET=API_SOCKET)
+
+        network = ipaddress.ip_network(f"{TAP_IP}{MASK}", strict=False)
+        hosts = list(network.hosts())
+        microvm_ip = str(hosts[1])  
 
         # ping to verify that it is running
         result = subprocess.run(
@@ -363,4 +403,4 @@ class FireBuildManager(FireAttachManager):
             raise RuntimeError("Firecracker API socket is not responsive")
         logger.info("Firecracker VM is running")
 
-        super().__init__(arch=ARCH, tap_dev=TAP_DEV, tap_ip= TAP_IP, mask=MASK, fc_mac=FC_MAC, api_socket=API_SOCKET, decider=decider)
+        super().__init__(microvm_ip= microvm_ip, fire_process=firecracker_process, fire_binary=firecracker_binary, key=ssh_key, checkpoint_dir=ckpt_dir, api_socket=API_SOCKET, decider=decider)

@@ -103,7 +103,9 @@ def create_env_manager(method: EnvType, **kwargs) -> EnvironmentManager:
         )
     elif method == "firecracker_build":
         return FireBuildManager(
-            firecracker_dir=kwargs.get("firecracker_dir", "fire_dir")
+            firecracker_dir=kwargs.get("firecracker_dir", "fire_dir"),
+            ckpt_dir=kwargs.get("ckpt_dir", "fire_ckpts")
+
         )
     else:
         raise ValueError(f"Unknown method: {method}")
