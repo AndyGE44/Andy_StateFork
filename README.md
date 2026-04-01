@@ -128,7 +128,7 @@ pip install -r requirements.txt
 
 ### gVisor Method (with Docker)
 - Docker must be installed and running.
-- Docker must have the runsc runtime installed.
+- Docker must have the runsc runtime installed (see [gvisor guide](https://gvisor.dev/docs/user_guide/install/)).
 - Docker must have experimental features enabled.
 - Make sure your user has permission to run Docker commands.
 
