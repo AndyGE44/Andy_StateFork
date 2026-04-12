@@ -340,7 +340,7 @@ class FireBuildManager(FireAttachManager):
 
             squashfs = self.fire_vm_dir / f"ubuntu-{ubuntu_version}.squashfs.upstream"
             squashfs_root = self.fire_vm_dir / "squashfs-root"
-            
+
             # make fresh every time
             subprocess.run(f"sudo rm -rf {squashfs} {squashfs_root} {rootfs}", shell=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
 
@@ -409,7 +409,7 @@ class FireBuildManager(FireAttachManager):
                 ],
                 "machine-config": {
                     "vcpu_count": 2,
-                    "mem_size_mib": 1024,
+                    "mem_size_mib": 17765, # ~18625 Mb
                 },
                 "network-interfaces": [
                     {

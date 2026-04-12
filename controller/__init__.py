@@ -103,7 +103,7 @@ def create_env_manager(method: EnvType, **kwargs) -> EnvironmentManager:
         )
     elif method == "firecracker_build":
         return FireBuildManager(
-            fire_parent_dir=kwargs.get("firecracker_dir", "."), # create artifact and ckpt directories here
+            fire_parent_dir=kwargs.get("firecracker_dir", "/mydata"), # create artifact and ckpt directories here
             inject_dir=kwargs.get("inject_dir", "app"), # pass files to be in the vm
             decider=kwargs.get("decider")
         )
