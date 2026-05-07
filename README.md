@@ -82,8 +82,10 @@ See the full method table below for supported types and arguments.
 | `hybrid_attach`   | HybridAttachManager         | Podman + CRIU   | `container_name(str)`                    | `export_dir(str)`                                                                        |
 | `ckpt_build`      | CheckpointLiteBuildManager  | Checkpoint-lite |                                          | `dockerfile_dir(str)`, `build(bool)`                                                    |
 | `ckpt_attach`     | CheckpointLiteAttachManager | Checkpoint-lite | `target_pid(int)`, `session_id(str)`     |                                                                                          |
-| `gvisor_build`    | GvisorBuildManager          | gVisor + Docker |                                          | `dockerfile_dir(str)`, `base_image(str)`, `extra_args(List[str])`                         |
+| `gvisor_build`    | GvisorBuildManager          | gVisor + Docker |                                          | `dockerfile_dir(str)`, `base_image(str)`, `extra_args(List[str])`                        |
+| `gvisor_attach`   | GvisorAttachManager         | gVisor + Docker | `container_name(str)`, `base_image(str)` | `extra_args(List[str])`                                                                  |
 |`firecracker_build`| FireBuildManager            | Firecracker     |                                          | `fire_parent_dir(str)`, `inject_dir(str)`                                                |
+|`firecracker_attach`| FireAttachManager          | Firecracker     |`pid(int)`, `microvm_ip(str)`, `tap_dev(str)`, `key(str)`, `checkpoint_dir(str)`, `vm_dir(str)`, `fire_binary(str)`, `api_socket(str)`| |
 ## 🧪 Benchmarking Support
 StateFork automatically logs and benchmarks the performance of:
 
