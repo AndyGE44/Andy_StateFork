@@ -18,8 +18,8 @@ EnvType = Literal[
     "podman_build", "podman_attach",
     "hybrid_build", "hybrid_attach",
     "ckpt_build", "ckpt_attach",
-    "gvisor_build",
-    "firecracker_build"
+    "gvisor_build", "gvisor_attach",
+    "firecracker_build", "firecracker_attach"
 ]
 
 """
