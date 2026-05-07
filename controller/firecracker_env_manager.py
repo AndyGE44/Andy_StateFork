@@ -215,7 +215,7 @@ class FireAttachManager(EnvironmentManager):
             self.ssh.close()
             self.fire_process.wait()
             subprocess.run(["sudo", "rm", "-f", self.api_socket], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, check=True)
-            subprocess.run(["sudo", "ip", "link", "del", self.TAP_DEV], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, check=True)
+            subprocess.run(["sudo", "ip", "link", "del", self.tap_dev], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, check=True)
 
             # clean up checkpoint directory and vm directory
             logger.info(f"Cleaning up vm and ckpt directories...")
