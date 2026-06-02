@@ -52,6 +52,8 @@ They follow the naming convention `{Backend}{Action}Manager`, where:
   - `CRIU` for process-level CRIU checkpointing
   - `Hybrid` for Podman + CRIU (captures both file and process states) 
   - `CheckpointLite` for Checkpoint-lite, a lightweight checkpointing tool (captures both file and process states)
+  - `gVisor` for Docker in gVisor (captures both file and process states)
+  - `Firecracker` for Firecracker microVM (captures process states)
 - **{Action}** Lifecycle mode:
   - `Build` starts a fresh instance (for testing/dev)
   - `Attach` connects to an existing container or process
@@ -84,6 +86,10 @@ See the full method table below for supported types and arguments.
 | `hybrid_attach`   | HybridAttachManager         | Podman + CRIU   | `container_name(str)`                    | `export_dir(str)`                                                                        |
 | `ckpt_build`      | CheckpointLiteBuildManager  | Checkpoint-lite |                                          | `dockerfile_dir(str)`, `build(bool)`                                                    |
 | `ckpt_attach`     | CheckpointLiteAttachManager | Checkpoint-lite | `target_pid(int)`, `session_id(str)`     |                                                                                          |
+| `gvisor_build`    | GvisorBuildManager          | gVisor + Docker |                                          | `dockerfile_dir(str)`, `base_image(str)`, `extra_args(List[str])`                        |
+| `gvisor_attach`   | GvisorAttachManager         | gVisor + Docker | `container_name(str)`, `base_image(str)` | `extra_args(List[str])`                                                                  |
+|`firecracker_build`| FireBuildManager            | Firecracker     |                                          | `fire_parent_dir(str)`, `inject_dir(str)`                                                |
+|`firecracker_attach`| FireAttachManager          | Firecracker     |`pid(int)`, `microvm_ip(str)`, `tap_dev(str)`, `key(str)`, `checkpoint_dir(str)`, `vm_dir(str)`, `fire_binary(str)`, `api_socket(str)`| |
 
 ## 🔀 Smart Decider
 
@@ -138,6 +144,23 @@ pip install -r requirements.txt
 ### Checkpoint-lite Method (CRIU + OverlayFS)
 - Checkpoint-lite must be installed from: [github.com/Alex-XJK/checkpoint-lite](https://github.com/Alex-XJK/checkpoint-lite)
 - Make sure the `checkpoint-lite` binary is in the current directory (suggested using a symbolic link).
+- Root or `sudo` privileges are required.
+
+### gVisor Method (with Docker)
+- Docker must be installed and running.
+- Docker must use the runsc runtime (see [gVisor installation guide](https://gvisor.dev/docs/user_guide/install/) and then [configuring Docker](https://gvisor.dev/docs/user_guide/quick_start/docker/)).
+- Docker must have experimental features enabled (add `"experimental": true` to `/etc/docker/daemon.json`, and then run `sudo systemctl restart docker`)
+- Make sure your user has permission to run Docker commands.
+
+#### gVisor Limitation: networking is not compatible with checkpoint/restore
+- The `--network=host` flag must be passed to Docker for checkpoint/restore to work at all (see [Moby issue](https://github.com/moby/moby/issues/50750)).
+- For gVisor to use the host network stack and fully achieve network passthrough, the `--network=host` flag must also be passed to runsc (see [gVisor user guide](https://gvisor.dev/docs/user_guide/networking/)).
+- However, this full network passthrough then breaks checkpoint/restore (see gvisor [source code](https://github.com/google/gvisor/blob/d23cf24593c311b17f79b6350fe0f629423a98ba/runsc/boot/restore.go#L472) and [issue](https://github.com/google/gvisor/issues/6243)).
+
+The result is a catch-22 in network functionality: checkpoint/restore requires `--network=host` passed to Docker, but full network passthrough requires `--network=host` passed to runsc, breaking checkpoint/restore.
+
+### Firecracker Method
+- paramiko must be installed (not currently in requirements.txt)
 - Root or `sudo` privileges are required.
 
 ---
