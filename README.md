@@ -7,6 +7,7 @@ enabling users to take snapshots, roll back state, and benchmark key operations 
 ## 🌟 Features
 
 - 🌱 Take and manage snapshots of running apps
+- 🔀 **Physical or virtual snapshots** via a pluggable decider policy (see [Smart Decider](#-smart-decider))
 - 🔁 Restore to previous snapshots instantly
 - 🧪 Benchmark time and storage performance of snapshot/restore operations
 - 🧩 Works with unmodified apps (FastAPI, Python/C++ scripts, etc.)
@@ -31,6 +32,9 @@ StateFork/
   │   ├── container_env_manager.py
   │   ├── hybrid_env_manager.py
   │   └── ...
+  ├── decider/               # Snapshot decision policies (physical vs virtual)
+  │   ├── __init__.py
+  │   └── decider.py
   ├── interface/             # Interface entrypoints
   │   ├── README.md
   │   └── shell.py
@@ -80,6 +84,17 @@ See the full method table below for supported types and arguments.
 | `hybrid_attach`   | HybridAttachManager         | Podman + CRIU   | `container_name(str)`                    | `export_dir(str)`                                                                        |
 | `ckpt_build`      | CheckpointLiteBuildManager  | Checkpoint-lite |                                          | `dockerfile_dir(str)`, `build(bool)`                                                    |
 | `ckpt_attach`     | CheckpointLiteAttachManager | Checkpoint-lite | `target_pid(int)`, `session_id(str)`     |                                                                                          |
+
+## 🔀 Smart Decider
+
+When `snapshot()` is called, StateFork can create either a **physical** or **virtual** snapshot:
+
+- **Physical snapshot** — invokes the backend’s full checkpoint path (e.g., container commit, CRIU dump, or Checkpoint-lite capture). Restore reloads that state in one step.
+- **Virtual snapshot** — records only the commands executed since the last snapshot, without calling the backend checkpoint. Restore walks up to the nearest physical ancestor, restores it, then replays the stored commands in order.
+
+This lets callers trade capture cost and storage against restore-time replay. The choice is made by a **`Decider`** strategy passed into any `EnvironmentManager` (default: always physical). Built-in policies live in `decider/`; the interactive shell selects them with `--decider`.
+
+See `controller/README.md` for snapshot/restore behavior and all built-in deciders.
 
 ## 🧪 Benchmarking Support
 StateFork automatically logs and benchmarks the performance of:
