@@ -10,8 +10,9 @@
   - `create_env_manager` function in `__init__.py`
   - Centralizes the creation of different environment manager instances. Developers can register new manager types and instantiate them through a single interface, improving extensibility.
 3. Strategy Pattern
-  - Manager classes and their use of `Calculator` components (e.g., for benchmarking)
-  - Allows managers to dynamically select and attach different `Calculator` strategies for benchmarking. This enables flexible and interchangeable calculation logic without modifying the manager code.
+  - **`Decider`** components choose physical vs virtual snapshots at each branch point
+  - **`Calculator`** components (e.g., for benchmarking) attach to managers for storage/size measurement
+  - Both are interchangeable strategies: managers keep the same workflow while policies or calculators vary.
 4. Iterator Pattern
   - Benchmarking components (e.g., `BenchmarkStats`)
   - Used when iterating over a collection of attached `Calculators` to perform operations. This pattern provides a uniform way to access and process multiple strategies or components.
@@ -31,6 +32,23 @@ They are:
 - `.restore(snapshot_id: str)`: Restore the environment to a specific snapshot and returns True if successful.
 - `.create_env_from_snapshot(snapshot_id: str)`: Create a container from a snapshot and return the name for the container.
 - `.cleanup()`: Clean up all containers and snapshots created by the controller instance.
+- `.exec_command(command)`: Execute a command in the managed environment. Commands are logged for virtual snapshot replay, and their elapsed time accumulates for decider policies.
+
+### 🔀 Physical vs Virtual Snapshots
+
+`EnvironmentManager.snapshot()` consults the attached **`Decider`** before calling backend-specific logic:
+
+| Type | On `snapshot()` | On `restore()` |
+|------|-----------------|----------------|
+| **Physical** | Calls `_core_snapshot()`; stores a real backend checkpoint | Calls `_core_restore()` once |
+| **Virtual** | Assigns a lightweight id; stores `replay_commands` copied from the command log since the parent | Restores the nearest **physical** ancestor, then replays commands from each virtual node on the path (parent → child) |
+
+The snapshot tree (`snapshot_graph`) tracks parent/child links and whether each node is virtual. Virtual nodes appear in `print_snapshot_tree()` like any other branch point; only restore behavior differs.
+
+**Decider types** (`decider/`): `AlwaysTrueDecider` (default, always physical), `AlwaysFalseDecider` (always virtual), `RandomDecider`, and `ThresholdDecider` (physical when cumulative exec time since the last physical snapshot exceeds a threshold). Pass any `Decider` instance via `decider=` when creating a manager.
+
+**Command tracking:** Between snapshots, `exec_command()` appends each command to `_command_log` and adds wall-clock time to `_cumulative_exec_time`. After a **physical** snapshot, cumulative exec time is reset to zero. After a **virtual** snapshot, cumulative time is retained (it still contributes to replay cost on restore). The command log is cleared after every snapshot so each virtual node stores only the commands since its parent.
+
 
 ### 🧩 Controller Helper
 All `EnvironmentManager` subclass instance also provides a series of helper methods to assist with common tasks.
