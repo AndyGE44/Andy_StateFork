@@ -25,7 +25,8 @@ BACKEND_MAP = {
     "podman": "podman_build",
     "criu": "criu_build",
     "hybrid": "hybrid_build",
-    "ckpt": "ckpt_build",
+    "waypoint": "waypoint_build",
+    "ckpt": "waypoint_build",  # legacy alias
     "gvisor": "gvisor_build",
     "firecracker": "firecracker_build"
 }

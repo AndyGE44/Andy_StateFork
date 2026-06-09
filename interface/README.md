@@ -11,7 +11,8 @@ Currently supported methods:
 - `podman` - for Podman-based environments focused on filesystem snapshots
 - `criu` - for CRIU-based environments focused on process state snapshots
 - `hybrid` - for Podman+CRIU environments combining filesystem and process state snapshots
-- `ckpt` - for our own [Checkpoint-lite](https://github.com/Alex-XJK/checkpoint-lite/) environments
+- `waypoint` - for Waypoint environments
+- `ckpt` - legacy alias for `waypoint`
 
 ### 2. Inside the Interactive Shell
 After launching the shell with the desired method, you will see a prompt similar to this:
