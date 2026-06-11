@@ -4,6 +4,7 @@ from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
 from typing import Dict, List, Optional
 from .benchmark import BenchmarkStats
+from .dolt_controller import DoltController
 from decider import Decider, DecisionContext, AlwaysTrueDecider
 
 logger = logging.getLogger("EnvManager.Base")
@@ -29,7 +30,10 @@ class EnvironmentManager(ABC):
     Applied the Strategy design pattern for different environment managers.
     """
 
-    def __init__(self, backend_name: str = "Base", decider: Optional[Decider] = None):
+    def __init__(self,
+                 backend_name: str = "Base",
+                 decider: Optional[Decider] = None,
+                 dolt: Optional[DoltController] = None):
         self.backend_name = backend_name
         self.snapshots: Dict[str, str] = {}  # snapshot_id -> image_id
         self._stats = BenchmarkStats()
@@ -42,6 +46,10 @@ class EnvironmentManager(ABC):
         # Command log since last generated snapshot
         self._command_log: List[List[str] | str] = []
         self.decider: Decider = decider if decider is not None else AlwaysTrueDecider()
+
+        # Optional external Dolt database controlled in lockstep with file-system
+        # snapshots/restores. None disables it (the default). See DoltController.
+        self.dolt: Optional[DoltController] = dolt
 
         # cumulative execution time since last generated snapshot
         self._cumulative_exec_time: float = 0.0
@@ -121,6 +129,10 @@ class EnvironmentManager(ABC):
         # TODO: figure out here:
         # self.current_snapshot_id = snapshot_id
 
+        # Version the external Dolt database under the same snapshot id.
+        if self.dolt is not None:
+            self.dolt.snapshot(snapshot_id)
+
         self.is_cleaned_up = False
         return snapshot_id
 
@@ -158,6 +170,10 @@ class EnvironmentManager(ABC):
             self.current_snapshot_id = snapshot_id
             self.last_snapshot_id = snapshot_id
             self._command_log = []
+
+            # Roll the external Dolt database back to the same snapshot id.
+            if self.dolt is not None:
+                self.dolt.restore(snapshot_id)
             return True
 
         # ===== Case 2: Virtual =====
@@ -198,6 +214,12 @@ class EnvironmentManager(ABC):
         self.current_snapshot_id = snapshot_id
         self.last_snapshot_id = snapshot_id
         self._command_log = []
+
+        # A virtual snapshot still owns a Dolt snapshot branch (created when the
+        # virtual node was taken), so restore the database directly to it rather
+        # than replaying onto the physical ancestor's database state.
+        if self.dolt is not None:
+            self.dolt.restore(snapshot_id)
         return True
 
     def _core_restore(self, snapshot_id: str) -> tuple[bool, float]:
@@ -253,6 +275,10 @@ class EnvironmentManager(ABC):
 
         # Core Cleanup
         self._core_cleanup()
+
+        # Tidy up the external Dolt snapshot branches, if any.
+        if self.dolt is not None:
+            self.dolt.cleanup()
 
         self.is_cleaned_up = True
         logger.info("Cleanup complete.")

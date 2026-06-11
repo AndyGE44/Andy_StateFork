@@ -6,6 +6,7 @@ from .waypoint_env_manager import WaypointAttachManager, WaypointBuildManager
 from .gvisor_env_manager import GvisorBuildManager, GvisorAttachManager
 from .firecracker_env_manager import FireBuildManager, FireAttachManager
 from .benchmark import BenchmarkStats, BenchmarkResult, Statistics
+from .dolt_controller import DoltController
 from decider.decider import Decider, RandomDecider, AlwaysFalseDecider, AlwaysTrueDecider
 
 from typing import Literal
@@ -24,8 +25,40 @@ EnvType = Literal[
 
 """
 Apply the Factory Method pattern to create different environment managers based on the method type.
+
+In addition to the backend-specific arguments, an optional **external Dolt**
+database can be controlled in lockstep with the file-system snapshots. Pass
+either a ready-made ``dolt=DoltController(...)`` instance, or the convenience
+kwargs ``dolt_repo`` (path to the Dolt repo, which also enables the feature),
+``dolt_branch_prefix``, ``dolt_working_branch``, and ``dolt_bin``. When enabled,
+each ``snapshot()`` commits the Dolt working set onto a per-snapshot branch and
+each ``restore()`` resets the database back to it.
 """
 def create_env_manager(method: EnvType, **kwargs) -> EnvironmentManager:
+    manager = _instantiate_manager(method, **kwargs)
+    _attach_dolt(manager, kwargs)
+    return manager
+
+
+def _attach_dolt(manager: EnvironmentManager, kwargs: dict) -> None:
+    """
+    Attach an external Dolt controller to a freshly created manager when the
+    caller asked for it. Doing this here (rather than threading a ``dolt`` arg
+    through every backend constructor) keeps the feature in one place.
+    """
+    dolt = kwargs.get("dolt")
+    if dolt is None and (kwargs.get("dolt_repo") or kwargs.get("use_dolt")):
+        dolt = DoltController(
+            repo_dir=kwargs.get("dolt_repo", "."),
+            branch_prefix=kwargs.get("dolt_branch_prefix", "sf_"),
+            working_branch=kwargs.get("dolt_working_branch", "main"),
+            dolt_bin=kwargs.get("dolt_bin", "dolt"),
+        )
+    if dolt is not None:
+        manager.dolt = dolt
+
+
+def _instantiate_manager(method: EnvType, **kwargs) -> EnvironmentManager:
     if method == "criu_build":
         return CRIUBuildManager(
             work_dir=kwargs.get("work_dir", "/tmp/statefork_criu"),

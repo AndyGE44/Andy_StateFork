@@ -41,7 +41,12 @@ DECIDER_MAP = {
 }
 
 
-def build_manager(method: str, decider_name: str, threshold: float):
+def build_manager(method: str,
+                  decider_name: str,
+                  threshold: float,
+                  dolt_repo: str = None,
+                  dolt_branch_prefix: str = "sf_",
+                  dolt_working_branch: str = "main"):
     method_key = BACKEND_MAP[method]
 
     if decider_name == "threshold":
@@ -50,15 +55,27 @@ def build_manager(method: str, decider_name: str, threshold: float):
         decider_cls = DECIDER_MAP[decider_name]
         decider_instance = decider_cls()
 
-    return create_env_manager(
-        method_key,
-        decider=decider_instance,
-    )
+    kwargs = dict(decider=decider_instance)
+
+    # Enable external Dolt control only when a repo path is provided.
+    if dolt_repo:
+        kwargs.update(
+            dolt_repo=dolt_repo,
+            dolt_branch_prefix=dolt_branch_prefix,
+            dolt_working_branch=dolt_working_branch,
+        )
+
+    return create_env_manager(method_key, **kwargs)
 
 def print_welcome_message(manager):
     print("==========================================")
     print("StateFork Container Manager - Interactive Shell")
     print(f"Using {manager.__class__.__name__} with {manager.backend} backend")
+    dolt = getattr(manager, "dolt", None)
+    if dolt is not None and dolt.enabled:
+        print(f"External Dolt control: ON  (repo: {dolt.repo_dir})")
+    elif dolt is not None:
+        print("External Dolt control: requested but `dolt` binary not found")
     print("")
     print(f"Available commands: {', '.join(AVAILABLE_COMMANDS)}")
 
@@ -174,9 +191,35 @@ def main():
         help="Threshold (seconds) for threshold decider"
     )
 
+    parser.add_argument(
+        "--dolt-repo",
+        default=None,
+        help="Path to an external Dolt repository to version alongside file-system "
+             "snapshots. Providing this enables external Dolt control."
+    )
+
+    parser.add_argument(
+        "--dolt-branch-prefix",
+        default="sf_",
+        help="Prefix for the per-snapshot Dolt branch names (default: sf_)"
+    )
+
+    parser.add_argument(
+        "--dolt-working-branch",
+        default="main",
+        help="Dolt branch used for live work between snapshots (default: main)"
+    )
+
     args = parser.parse_args()
 
-    manager = build_manager(args.method, args.decider, args.threshold)
+    manager = build_manager(
+        args.method,
+        args.decider,
+        args.threshold,
+        dolt_repo=args.dolt_repo,
+        dolt_branch_prefix=args.dolt_branch_prefix,
+        dolt_working_branch=args.dolt_working_branch,
+    )
     interactive_shell(manager)
 
 

@@ -50,6 +50,35 @@ The snapshot tree (`snapshot_graph`) tracks parent/child links and whether each 
 **Command tracking:** Between snapshots, `exec_command()` appends each command to `_command_log` and adds wall-clock time to `_cumulative_exec_time`. After a **physical** snapshot, cumulative exec time is reset to zero. After a **virtual** snapshot, cumulative time is retained (it still contributes to replay cost on restore). The command log is cleared after every snapshot so each virtual node stores only the commands since its parent.
 
 
+### 🗃️ External Dolt Database Control
+
+Any `EnvironmentManager` can version an **external** [Dolt](https://github.com/dolthub/dolt) database alongside its
+file-system/process snapshots, using Dolt's own branching. This is independent of the backend: while the manager
+snapshots system state (container, CRIU, Waypoint, …), the `DoltController` snapshots a Dolt repository that lives
+*outside* the managed environment (a plain directory on the host that the app reads/writes directly).
+
+Attach it through the factory by passing a repo path (which enables the feature):
+```python
+manager = create_env_manager(
+    "docker_build",
+    dolt_repo="/path/to/dolt_db",          # enables external Dolt control
+    dolt_branch_prefix="sf_",              # optional (default)
+    dolt_working_branch="main",            # optional (default)
+)
+```
+You may also pass a ready-made `dolt=DoltController(...)` instance instead of the convenience kwargs.
+
+| StateFork op   | Dolt action                                                                                  |
+|----------------|----------------------------------------------------------------------------------------------|
+| `snapshot(id)` | `dolt add -A` + `dolt commit`, then point branch `<prefix><id>` at the new commit             |
+| `restore(id)`  | `dolt checkout <working_branch>` + `dolt reset --hard <prefix><id>`                            |
+| `cleanup()`    | Best-effort deletion of the `<prefix>*` snapshot branches created during the session          |
+
+Both **physical** and **virtual** snapshots get their own Dolt snapshot branch, so a virtual restore rolls the database
+straight to the captured state rather than replaying commands against it. Dolt failures are logged but never abort a
+StateFork snapshot/restore that already captured the file system, and if the `dolt` binary is missing the controller
+quietly disables itself (`DoltController.enabled` is `False`).
+
 ### 🧩 Controller Helper
 All `EnvironmentManager` subclass instance also provides a series of helper methods to assist with common tasks.
 

@@ -9,6 +9,7 @@ enabling users to take snapshots, roll back state, and benchmark key operations 
 - 🌱 Take and manage snapshots of running apps
 - 🔀 **Physical or virtual snapshots** via a pluggable decider policy (see [Smart Decider](#-smart-decider))
 - 🔁 Restore to previous snapshots instantly
+- 🗃️ **Version an external [Dolt](https://github.com/dolthub/dolt) database** in lockstep with file/process snapshots, using Dolt's own branching (see [External Dolt Control](#%EF%B8%8F-external-dolt-control))
 - 🧪 Benchmark time and storage performance of snapshot/restore operations
 - 🧩 Works with unmodified apps (FastAPI, Python/C++ scripts, etc.)
 - ⚙️ CLI-based interactive interface
@@ -104,6 +105,29 @@ This lets callers trade capture cost and storage against restore-time replay. Th
 
 See `controller/README.md` for snapshot/restore behavior and all built-in deciders.
 
+## 🗃️ External Dolt Control
+
+Alongside snapshotting the **system state** (files and/or process), StateFork can version an **external**
+[Dolt](https://github.com/dolthub/dolt) database that lives *outside* the StateFork shell — a plain Dolt repository
+directory on the host that the managed app reads and writes directly. StateFork does not proxy the database traffic; it
+versions the database using **Dolt's own branching** so the data state tracks the system state.
+
+When enabled, each `snapshot(id)` commits the current Dolt working set and points a branch `sf_<id>` at that commit,
+while each `restore(id)` resets the working branch back to the matching snapshot branch. Both physical and virtual
+snapshots get their own Dolt branch.
+
+Enable it from the shell by pointing at the Dolt repo directory:
+```bash
+python3 -m interface.shell --method docker --dolt-repo /path/to/dolt_db
+```
+…or programmatically via the factory:
+```python
+from controller import create_env_manager
+manager = create_env_manager("docker_build", dolt_repo="/path/to/dolt_db")
+```
+The `dolt` binary must be on `PATH`; if it is missing, StateFork prints a notice and continues with system snapshots
+only. See `controller/README.md` and `interface/README.md` for the full option list.
+
 ## 🧪 Benchmarking Support
 StateFork automatically logs and benchmarks the performance of:
 
@@ -164,6 +188,11 @@ The result is a catch-22 in network functionality: checkpoint/restore requires `
 ### Firecracker Method
 - paramiko must be installed (not currently in requirements.txt)
 - Root or `sudo` privileges are required.
+
+### External Dolt Control (optional)
+- Only needed when using `--dolt-repo` / `dolt_repo=`.
+- Install the `dolt` CLI from: https://github.com/dolthub/dolt and make sure it is on your `PATH`.
+- The target directory is initialized with `dolt init` automatically if it is not already a Dolt repository.
 
 ---
 For core controller usage, see the `controller/README.md` file.  
