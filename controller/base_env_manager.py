@@ -130,8 +130,12 @@ class EnvironmentManager(ABC):
         # self.current_snapshot_id = snapshot_id
 
         # Version the external Dolt database under the same snapshot id.
-        if self.dolt is not None:
-            self.dolt.snapshot(snapshot_id)
+        # A Dolt failure is logged but does NOT fail the file-system snapshot.
+        if self.dolt is not None and not self.dolt.snapshot(snapshot_id):
+            logger.warning(
+                f"External Dolt snapshot failed for {snapshot_id}; "
+                f"file-system snapshot still recorded."
+            )
 
         self.is_cleaned_up = False
         return snapshot_id
@@ -172,8 +176,12 @@ class EnvironmentManager(ABC):
             self._command_log = []
 
             # Roll the external Dolt database back to the same snapshot id.
-            if self.dolt is not None:
-                self.dolt.restore(snapshot_id)
+            # A Dolt failure is logged but does NOT fail the file-system restore.
+            if self.dolt is not None and not self.dolt.restore(snapshot_id):
+                logger.warning(
+                    f"External Dolt restore failed for {snapshot_id}; "
+                    f"file-system restore still applied."
+                )
             return True
 
         # ===== Case 2: Virtual =====
@@ -218,8 +226,12 @@ class EnvironmentManager(ABC):
         # A virtual snapshot still owns a Dolt snapshot branch (created when the
         # virtual node was taken), so restore the database directly to it rather
         # than replaying onto the physical ancestor's database state.
-        if self.dolt is not None:
-            self.dolt.restore(snapshot_id)
+        # A Dolt failure is logged but does NOT fail the file-system restore.
+        if self.dolt is not None and not self.dolt.restore(snapshot_id):
+            logger.warning(
+                f"External Dolt restore failed for {snapshot_id}; "
+                f"file-system restore still applied."
+            )
         return True
 
     def _core_restore(self, snapshot_id: str) -> tuple[bool, float]:

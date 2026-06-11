@@ -27,10 +27,13 @@ class DoltController:
       file-system state back in time.
 
     All operations shell out to the ``dolt`` CLI with ``cwd`` set to
-    ``repo_dir``. Failures are logged but never raised: a problem with the
+    ``repo_dir``. **Failures are logged but never raised**: a problem with the
     external database must not abort a StateFork snapshot/restore that already
-    captured the file system. If the ``dolt`` binary is missing, the controller
-    quietly disables itself (``enabled`` is False) and every operation no-ops.
+    captured the file system. ``snapshot()`` / ``restore()`` return ``False`` on
+    failure so the caller can log a notice, but the file-system operation is
+    still reported as successful. If the ``dolt`` binary is missing, the
+    controller quietly disables itself (``enabled`` is False) and every
+    operation no-ops.
     """
 
     def __init__(self,
@@ -54,6 +57,7 @@ class DoltController:
         self.working_branch = working_branch
         self.dolt_bin = dolt_bin
         self.author = author
+        self._identity_name, self._identity_email = self._parse_author(author)
         # snapshot branches created by this controller (for cleanup/inspection)
         self._branches: set[str] = set()
 
@@ -67,11 +71,19 @@ class DoltController:
         os.makedirs(self.repo_dir, exist_ok=True)
         if init_if_missing and not os.path.isdir(os.path.join(self.repo_dir, ".dolt")):
             logger.info(f"Initializing new Dolt repository at {self.repo_dir}")
-            self._run(["init"], check=False)
+            # `dolt init` builds the first commit, so it needs an identity up
+            # front (it would otherwise read the global config, which may be
+            # unset). Pass one explicitly via --name/--email.
+            self._run([
+                "init",
+                "--name", self._identity_name,
+                "--email", self._identity_email,
+                "--initial-branch", self.working_branch,
+            ])
 
-        # Make sure commits have an identity even on a fresh machine.
-        self._run(["config", "--local", "--add", "user.name", "StateFork"], check=False)
-        self._run(["config", "--local", "--add", "user.email", "statefork@local"], check=False)
+        # Persist a local commit identity so subsequent commits don't depend on
+        # global config. Only reachable once the repo exists.
+        self._ensure_identity()
 
         logger.info(
             f"External Dolt control enabled on {self.repo_dir} "
@@ -87,10 +99,29 @@ class DoltController:
         """Return the Dolt branch name used for a StateFork snapshot id."""
         return f"{self.branch_prefix}{snapshot_id}"
 
-    def _run(self, args: List[str], check: bool = True) -> Optional[subprocess.CompletedProcess]:
+    @staticmethod
+    def _failed(proc: Optional[subprocess.CompletedProcess]) -> bool:
+        """True when a dolt command did not run or exited non-zero."""
+        return proc is None or proc.returncode != 0
+
+    @staticmethod
+    def _parse_author(author: str) -> tuple[str, str]:
+        """Split a ``"Name <email>"`` author string into (name, email)."""
+        name, _, rest = author.partition("<")
+        name = name.strip() or "StateFork"
+        email = rest.rstrip(">").strip() or "statefork@local"
+        return name, email
+
+    def _run(self,
+             args: List[str],
+             log_fail: bool = True) -> Optional[subprocess.CompletedProcess]:
         """
-        Run a dolt subcommand in the repo directory. Returns the
-        CompletedProcess, or None if dolt is unavailable / the call raised.
+        Run a dolt subcommand in the repo directory. Never raises. Logs an error
+        on a non-zero exit unless ``log_fail`` is False (used for probes whose
+        failure is expected, e.g. ``branch --list`` / ``config --get``).
+
+        :return: the CompletedProcess, or None if dolt is unavailable / the call
+            raised before producing a result.
         """
         if not self._available:
             return None
@@ -101,15 +132,24 @@ class DoltController:
                 capture_output=True,
                 text=True,
             )
-            if check and proc.returncode != 0:
-                logger.error(
-                    f"dolt {' '.join(args)} failed (rc={proc.returncode}): "
-                    f"{proc.stderr.strip() or proc.stdout.strip()}"
-                )
-            return proc
         except Exception as e:  # pragma: no cover - defensive
             logger.error(f"dolt {' '.join(args)} raised: {e}")
             return None
+
+        if log_fail and proc.returncode != 0:
+            logger.error(
+                f"dolt {' '.join(args)} failed (rc={proc.returncode}): "
+                f"{proc.stderr.strip() or proc.stdout.strip()}"
+            )
+        return proc
+
+    def _ensure_identity(self) -> None:
+        """Set a local commit identity if the repo doesn't already have one."""
+        for key, value in (("user.name", self._identity_name),
+                           ("user.email", self._identity_email)):
+            got = self._run(["config", "--get", key], log_fail=False)
+            if got is None or not (got.stdout or "").strip():
+                self._run(["config", "--local", "--add", key, value])
 
     def snapshot(self, snapshot_id: str) -> bool:
         """
@@ -119,8 +159,9 @@ class DoltController:
         ``working_branch`` while ``<branch_prefix><snapshot_id>`` is created (or
         force-moved) to the freshly committed state.
 
-        :return: True if the snapshot branch was recorded, False if dolt is
-            disabled.
+        :return: True on success. False if dolt is disabled or a step failed
+            (already logged); the caller still treats the file-system snapshot as
+            successful.
         """
         if not self._available:
             return False
@@ -129,17 +170,23 @@ class DoltController:
 
         # Stage and commit everything. --allow-empty guarantees that every
         # StateFork snapshot id maps to a Dolt commit, even with no data change.
-        self._run(["add", "-A"], check=False)
-        self._run(
+        self._run(["add", "-A"])
+        commit = self._run(
             ["commit", "--allow-empty", "--author", self.author,
-             "-m", f"StateFork snapshot {snapshot_id}"],
-            check=False,
+             "-m", f"StateFork snapshot {snapshot_id}"]
         )
 
         # Create or force-move the per-snapshot branch pointer at HEAD.
-        self._run(["branch", "-f", branch, "HEAD"], check=False)
-        self._branches.add(branch)
+        branched = self._run(["branch", "-f", branch, "HEAD"])
 
+        if self._failed(commit) or self._failed(branched):
+            logger.error(
+                f"Dolt snapshot for '{snapshot_id}' did not complete; "
+                f"database left unversioned for this id."
+            )
+            return False
+
+        self._branches.add(branch)
         logger.info(f"Dolt snapshot recorded on branch '{branch}'")
         return True
 
@@ -150,8 +197,9 @@ class DoltController:
         Mirrors a StateFork ``restore()``: the database follows the file system
         back to the captured state.
 
-        :return: True if the restore was attempted, False if dolt is disabled or
-            the snapshot branch does not exist.
+        :return: True on success. False if dolt is disabled, the snapshot branch
+            does not exist, or a step failed (already logged); the caller still
+            treats the file-system restore as successful.
         """
         if not self._available:
             return False
@@ -159,14 +207,18 @@ class DoltController:
         branch = self.branch_name(snapshot_id)
 
         # Verify the snapshot branch exists before touching the working branch.
-        proc = self._run(["branch", "--list", branch], check=False)
-        if proc is None or branch not in (proc.stdout or ""):
+        listing = self._run(["branch", "--list", branch], log_fail=False)
+        if self._failed(listing) or branch not in (listing.stdout or ""):
             logger.error(f"Dolt snapshot branch '{branch}' not found; cannot restore.")
             return False
 
         # Work always happens on the working branch; reset it to the snapshot.
-        self._run(["checkout", self.working_branch], check=False)
-        self._run(["reset", "--hard", branch], check=False)
+        checked_out = self._run(["checkout", self.working_branch])
+        reset = self._run(["reset", "--hard", branch])
+
+        if self._failed(checked_out) or self._failed(reset):
+            logger.error(f"Dolt restore to '{branch}' did not complete.")
+            return False
 
         logger.info(f"Dolt restored to snapshot branch '{branch}'")
         return True
@@ -182,7 +234,7 @@ class DoltController:
         if not self._available:
             return
         # Make sure we are not standing on a branch we are about to delete.
-        self._run(["checkout", self.working_branch], check=False)
+        self._run(["checkout", self.working_branch], log_fail=False)
         for branch in sorted(self._branches):
-            self._run(["branch", "-D", branch], check=False)
+            self._run(["branch", "-D", branch], log_fail=False)
         self._branches.clear()
