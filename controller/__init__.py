@@ -1,17 +1,51 @@
+import importlib
+from typing import Literal, TYPE_CHECKING
+
+# --- Lightweight (stdlib-only) imports -------------------------------------
+# Keeping the package import light lets external integrations (e.g. Harbor)
+# import the container/base/decider machinery without pulling in optional
+# heavy backends and their dependencies (paramiko for Firecracker, psutil for
+# CRIU/Firecracker, etc.). The heavy backends are imported lazily inside the
+# factory and exposed via module ``__getattr__`` for backwards compatibility.
 from .base_env_manager import EnvironmentManager
 from .container_env_manager import ContainerAttachManager, ContainerBuildManager
-from .criu_env_manager import CRIUAttachManager, CRIUBuildManager
-from .hybrid_env_manager import HybridAttachManager, HybridBuildManager
-from .waypoint_env_manager import WaypointAttachManager, WaypointBuildManager
-from .gvisor_env_manager import GvisorBuildManager, GvisorAttachManager
-from .firecracker_env_manager import FireBuildManager, FireAttachManager
 from .benchmark import BenchmarkStats, BenchmarkResult, Statistics
 from .dolt_controller import DoltController
 from decider.decider import Decider, RandomDecider, AlwaysFalseDecider, AlwaysTrueDecider
 
-from typing import Literal
-from pathlib import Path
-import psutil
+if TYPE_CHECKING:  # for type checkers / IDEs only; not imported at runtime
+    from .criu_env_manager import CRIUAttachManager, CRIUBuildManager
+    from .hybrid_env_manager import HybridAttachManager, HybridBuildManager
+    from .waypoint_env_manager import WaypointAttachManager, WaypointBuildManager
+    from .gvisor_env_manager import GvisorBuildManager, GvisorAttachManager
+    from .firecracker_env_manager import FireBuildManager, FireAttachManager
+
+# Map of lazily-loaded names -> (submodule, attribute). Accessing any of these
+# as ``controller.<Name>`` (or ``from controller import <Name>``) imports the
+# backing module on demand, so optional dependencies are only required when the
+# corresponding backend is actually used.
+_LAZY_EXPORTS = {
+    "CRIUAttachManager": ".criu_env_manager",
+    "CRIUBuildManager": ".criu_env_manager",
+    "HybridAttachManager": ".hybrid_env_manager",
+    "HybridBuildManager": ".hybrid_env_manager",
+    "WaypointAttachManager": ".waypoint_env_manager",
+    "WaypointBuildManager": ".waypoint_env_manager",
+    "GvisorBuildManager": ".gvisor_env_manager",
+    "GvisorAttachManager": ".gvisor_env_manager",
+    "FireBuildManager": ".firecracker_env_manager",
+    "FireAttachManager": ".firecracker_env_manager",
+}
+
+
+def __getattr__(name: str):
+    """PEP 562 lazy attribute access for optional heavy backends."""
+    module_name = _LAZY_EXPORTS.get(name)
+    if module_name is None:
+        raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
+    module = importlib.import_module(module_name, __name__)
+    return getattr(module, name)
+
 
 EnvType = Literal[
     "criu_build", "criu_attach",
@@ -60,12 +94,14 @@ def _attach_dolt(manager: EnvironmentManager, kwargs: dict) -> None:
 
 def _instantiate_manager(method: EnvType, **kwargs) -> EnvironmentManager:
     if method == "criu_build":
+        from .criu_env_manager import CRIUBuildManager
         return CRIUBuildManager(
             work_dir=kwargs.get("work_dir", "/tmp/statefork_criu"),
             command=kwargs.get("command"),
             decider=kwargs.get("decider")
         )
     elif method == "criu_attach":
+        from .criu_env_manager import CRIUAttachManager
         return CRIUAttachManager(
             target_pid=kwargs["target_pid"],
             work_dir=kwargs.get("work_dir", "/tmp/statefork_criu"),
@@ -104,6 +140,7 @@ def _instantiate_manager(method: EnvType, **kwargs) -> EnvironmentManager:
             decider=kwargs.get("decider")
         )
     elif method == "hybrid_build":
+        from .hybrid_env_manager import HybridBuildManager
         return HybridBuildManager(
             container_name=kwargs.get("container_name", "podman-build"),
             dockerfile_dir=kwargs.get("dockerfile_dir", "."),
@@ -112,24 +149,28 @@ def _instantiate_manager(method: EnvType, **kwargs) -> EnvironmentManager:
             decider=kwargs.get("decider")
         )
     elif method == "hybrid_attach":
+        from .hybrid_env_manager import HybridAttachManager
         return HybridAttachManager(
             container_name=kwargs["container_name"],
             export_dir=kwargs.get("export_dir", "/tmp/statefork_podman"),
             decider=kwargs.get("decider")
         )
     elif method in ("waypoint_build", "ckpt_build"):
+        from .waypoint_env_manager import WaypointBuildManager
         return WaypointBuildManager(
             dockerfile_dir=kwargs.get("dockerfile_dir"),
             build=kwargs.get("build", True),
             decider=kwargs.get("decider")
         )
     elif method in ("waypoint_attach", "ckpt_attach"):
+        from .waypoint_env_manager import WaypointAttachManager
         return WaypointAttachManager(
             session_id=kwargs["session_id"],
             target_pid=kwargs.get("target_pid", -2),
             decider=kwargs.get("decider")
         )
     elif method == "gvisor_build":
+        from .gvisor_env_manager import GvisorBuildManager
         return GvisorBuildManager(
             base_image=kwargs.get("base_image"),
             dockerfile_dir=kwargs.get("dockerfile_dir", "."),
@@ -137,6 +178,7 @@ def _instantiate_manager(method: EnvType, **kwargs) -> EnvironmentManager:
             decider=kwargs.get("decider")
         )
     elif method == "gvisor_attach":
+        from .gvisor_env_manager import GvisorAttachManager
         return GvisorAttachManager(
             container_name=kwargs["container_name"],
             base_image=kwargs.get("base_image", "statefork-app:base"),
@@ -144,12 +186,16 @@ def _instantiate_manager(method: EnvType, **kwargs) -> EnvironmentManager:
             decider=kwargs.get("decider")
         )
     elif method == "firecracker_build":
+        from .firecracker_env_manager import FireBuildManager
         return FireBuildManager(
             fire_parent_dir=kwargs.get("firecracker_dir", "/tmp"), # create artifact and ckpt directories here
             inject_dir=kwargs.get("inject_dir", "app"), # pass files to be in the vm
             decider=kwargs.get("decider")
         )
     elif method == "firecracker_attach":
+        import psutil
+        from pathlib import Path
+        from .firecracker_env_manager import FireAttachManager
         fire_pid = int(kwargs["pid"])
         return FireAttachManager(
             fire_process = psutil.Process(fire_pid),
