@@ -17,6 +17,25 @@ STATEFORK_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 WAYPOINT_BIN = os.path.join(STATEFORK_ROOT, "waypoint")
 BASH_INIT_BIN = os.path.join(STATEFORK_ROOT, "bash_init")
 
+def _waypoint_bin() -> str:
+    """Path to the ``waypoint`` binary.
+
+    Defaults to ``<STATEFORK_ROOT>/waypoint`` (the symlink to the built Go
+    binary). Override with ``WAYPOINT_BIN`` so an external orchestrator (e.g.
+    Harbor) can point at a binary outside this checkout.
+    """
+    return os.environ.get("WAYPOINT_BIN", WAYPOINT_BIN)
+
+def _waypoint_prefix() -> list[str]:
+    """Optional argv prefix prepended to every waypoint invocation.
+
+    Waypoint needs root (CRIU/OverlayFS/chroot). When StateFork is driven from
+    a non-root process, set ``WAYPOINT_CMD_PREFIX`` (e.g. ``"sudo -n -E"``) so
+    the binary runs with privilege. Empty by default — fully backward
+    compatible with callers that already run as root.
+    """
+    return shlex.split(os.environ.get("WAYPOINT_CMD_PREFIX", ""))
+
 def _waypoint_env() -> dict[str, str]:
     env = os.environ.copy()
     env.setdefault("WAYPOINT_BASH_INIT_SRC", BASH_INIT_BIN)
@@ -27,7 +46,7 @@ def _waypoint_env() -> dict[str, str]:
 
 def _run_waypoint(args: list[str], **kwargs):
     return subprocess.run(
-        [WAYPOINT_BIN, *args],
+        [*_waypoint_prefix(), _waypoint_bin(), *args],
         cwd=STATEFORK_ROOT,
         env=_waypoint_env(),
         **kwargs,
