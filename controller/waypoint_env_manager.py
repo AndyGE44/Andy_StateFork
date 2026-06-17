@@ -197,6 +197,9 @@ class WaypointAttachManager(EnvironmentManager):
                 stdout=subprocess.PIPE,
                 stderr=subprocess.PIPE,
                 text=True,
+                # Command output may contain non-UTF-8 bytes (binary files,
+                # hexdumps, etc.); decode leniently instead of raising.
+                errors="replace",
                 timeout=timeout,
                 check=False,
             )
