@@ -113,10 +113,10 @@ class WaypointAttachManager(EnvironmentManager):
 
         start = time.time()
         try:
-            _run_waypoint(
-                ["create", self.session_id, snapshot_id, str(self.target_pid)],
-                check=True,
-            )
+            create_args = ["create", self.session_id, snapshot_id]
+            if self.target_pid is not None:
+                create_args.append(str(self.target_pid))
+            _run_waypoint(create_args, check=True)
             elapsed = time.time() - start
             self.snapshots[snapshot_id] = snapshot_id
             return snapshot_id, elapsed
@@ -237,7 +237,16 @@ class WaypointBuildManager(WaypointAttachManager):
 
         logger.info(f"New session {sid} with work directory '{self._work_dir}' created.")
 
-        super().__init__(session_id=sid, decider=decider)
+        # In build mode the `build` command leaves a long-running shell session;
+        # omitting the PID on `waypoint create` (target_pid=None) checkpoints that
+        # session WITH its memory (CRIU), capturing the app exec'd into it
+        # (Waypoint v0.5.0+). In plain init mode (process runtime) no app lives in
+        # the session, so keep the fs-only sentinel (PID_NOT_PROVIDED).
+        super().__init__(
+            session_id=sid,
+            target_pid=None if build else self.PID_NOT_PROVIDED,
+            decider=decider,
+        )
 
         # Attach the new WaypointCalculator to this session
         base_dir = os.path.join(self._work_dir, "../")
