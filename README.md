@@ -172,6 +172,17 @@ pip install -r requirements.txt
 - Make the `waypoint` binary discoverable in one of three ways: set the `WAYPOINT_BIN` environment variable to its full path, place it on your `PATH`, or symlink it into the repository root (e.g. `ln -s /path/to/waypoint ./waypoint`). The `bash_init` helper is resolved the same way via `WAYPOINT_BASH_INIT_SRC`. These files are intentionally not committed.
 - Root or `sudo` privileges are required.
 
+#### Environment variables (optional)
+
+Copy `env.sample.sh` to `env.local.sh`, edit it, and `source ./env.local.sh` before running. All variables are optional.
+
+| Variable | Purpose | Default / fallback |
+|---|---|---|
+| `WAYPOINT_BIN` | Path to the `waypoint` binary | `$PATH`, then `<repo>/waypoint` |
+| `WAYPOINT_BASH_INIT_SRC` | Path to the `bash_init` helper | `$PATH`, then `<repo>/bash_init` |
+| `WAYPOINT_SESSIONS_DIR` | Directory for session state (`CHECKPOINT_SESSIONS_DIR` is an alias) | Waypoint default |
+| `WAYPOINT_PRESERVE_SESSION_ON_CLEANUP` | Keep session directories after cleanup | `true` |
+
 ### gVisor Method (with Docker)
 - Docker must be installed and running.
 - Docker must use the runsc runtime (see [gVisor installation guide](https://gvisor.dev/docs/user_guide/install/) and then [configuring Docker](https://gvisor.dev/docs/user_guide/quick_start/docker/)).
