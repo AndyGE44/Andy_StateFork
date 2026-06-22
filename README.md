@@ -145,7 +145,7 @@ pip install -r requirements.txt
 
 ### Waypoint Method (CRIU + OverlayFS)
 - Waypoint must be installed from: [github.com/Alex-XJK/waypoint](https://github.com/Alex-XJK/waypoint)
-- Make sure the `waypoint` binary is in the current directory (suggested using a symbolic link).
+- Make the `waypoint` binary discoverable in one of three ways: set the `WAYPOINT_BIN` environment variable to its full path, place it on your `PATH`, or symlink it into the repository root (e.g. `ln -s /path/to/waypoint ./waypoint`). The `bash_init` helper is resolved the same way via `WAYPOINT_BASH_INIT_SRC`. These files are intentionally not committed.
 - Root or `sudo` privileges are required.
 
 ### gVisor Method (with Docker)

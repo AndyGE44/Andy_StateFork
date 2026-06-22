@@ -195,3 +195,9 @@ cython_debug/
 
 # Alex Logs
 !logs/*/*.log
+
+# Waypoint helper binaries — installed/symlinked locally, not committed.
+# Resolved at runtime via WAYPOINT_BIN / WAYPOINT_BASH_INIT_SRC, PATH, or a
+# repo-root symlink (see controller/waypoint_env_manager.py).
+/waypoint
+/bash_init
