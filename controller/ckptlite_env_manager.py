@@ -13,6 +13,27 @@ from decider import Decider
 
 logger = logging.getLogger("EnvManager.CkptLite")
 
+STATEFORK_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
+CHECKPOINT_LITE_BIN = os.path.join(STATEFORK_ROOT, "checkpoint-lite")
+BASH_INIT_BIN = os.path.join(STATEFORK_ROOT, "bash_init")
+
+def _checkpoint_lite_env() -> dict[str, str]:
+    env = os.environ.copy()
+    env.setdefault("CHECKPOINT_BASH_INIT_SRC", BASH_INIT_BIN)
+    env.setdefault("WAYPOINT_BASH_INIT_SRC", BASH_INIT_BIN)
+    env.setdefault("WAYPOINT_PRESERVE_SESSION_ON_CLEANUP", "true")
+    if "CHECKPOINT_SESSIONS_DIR" in env:
+        env.setdefault("WAYPOINT_SESSIONS_DIR", env["CHECKPOINT_SESSIONS_DIR"])
+    return env
+
+def _run_checkpoint_lite(args: list[str], **kwargs):
+    return subprocess.run(
+        [CHECKPOINT_LITE_BIN, *args],
+        cwd=STATEFORK_ROOT,
+        env=_checkpoint_lite_env(),
+        **kwargs,
+    )
+
 class CkptCalculator(Calculator):
     """
     CkptCalculator is a specialized FileSizeCalculator for Checkpoint-lite that
@@ -93,9 +114,9 @@ class CheckpointLiteAttachManager(EnvironmentManager):
 
         start = time.time()
         try:
-            subprocess.run(
-                ["./checkpoint-lite", "create", self.session_id, snapshot_id, str(self.target_pid)],
-                check=True
+            _run_checkpoint_lite(
+                ["create", self.session_id, snapshot_id, str(self.target_pid)],
+                check=True,
             )
             elapsed = time.time() - start
             self.snapshots[snapshot_id] = snapshot_id
@@ -112,9 +133,9 @@ class CheckpointLiteAttachManager(EnvironmentManager):
 
         start = time.time()
         try:
-            subprocess.run(
-                ["./checkpoint-lite", "restore", self.session_id, snapshot_id],
-                check=True
+            _run_checkpoint_lite(
+                ["restore", self.session_id, snapshot_id],
+                check=True,
             )
             elapsed = time.time() - start
             return snapshot_id, elapsed
@@ -125,17 +146,17 @@ class CheckpointLiteAttachManager(EnvironmentManager):
     def _core_cleanup(self):
         logger.info("Shutting down CheckpointLite environment...")
         try:
-            subprocess.run(
-                ["./checkpoint-lite", "cleanup", self.session_id],
-                check=True
+            _run_checkpoint_lite(
+                ["cleanup", self.session_id],
+                check=True,
             )
         except subprocess.CalledProcessError as e:
             logger.error(f"CheckpointLite cleanup failed: {e}")
             logger.info("Attempting force cleanup...")
             try:
-                subprocess.run(
-                    ["./checkpoint-lite", "cleanup", self.session_id, "--force"],
-                    check=True
+                _run_checkpoint_lite(
+                    ["cleanup", self.session_id, "--force"],
+                    check=True,
                 )
             except subprocess.CalledProcessError as e:
                 logger.error(f"CheckpointLite force cleanup failed: {e}")
@@ -151,16 +172,15 @@ class CheckpointLiteAttachManager(EnvironmentManager):
         else:
             cmd_str = shlex.join(command)
 
-        # Execute `command` via `./checkpoint-lite exec <session_id> <args...>`.
-        exec_args = ["./checkpoint-lite", "exec", self.session_id, cmd_str]
+        # Execute `command` via `checkpoint-lite exec <session_id> <args...>`.
         try:
-            proc = subprocess.run(
-                exec_args,
+            proc = _run_checkpoint_lite(
+                ["exec", self.session_id, cmd_str],
                 stdout=subprocess.PIPE,
                 stderr=subprocess.PIPE,
                 text=True,
                 timeout=timeout,
-                check=False
+                check=False,
             )
             return proc.returncode, proc.stdout, proc.stderr
         except subprocess.TimeoutExpired as e:
@@ -188,12 +208,12 @@ class CheckpointLiteBuildManager(CheckpointLiteAttachManager):
 
         logger.info("Creating a new Checkpoint-lite session...")
         if not build:
-            init_process = subprocess.run(
-                ["./checkpoint-lite", "init", target_dir, "--quiet"],
+            init_process = _run_checkpoint_lite(
+                ["init", target_dir, "--quiet"],
                 stdout=subprocess.PIPE,
                 stderr=subprocess.PIPE,
                 text=True,
-                check=True
+                check=True,
             )
 
             output = init_process.stdout.strip()
@@ -202,12 +222,12 @@ class CheckpointLiteBuildManager(CheckpointLiteAttachManager):
             except ValueError:
                 raise RuntimeError(f"Unexpected output format: {output}")
         else:
-            init_process = subprocess.run(
-                ["./checkpoint-lite", "build", target_dir, "--quiet"],
+            init_process = _run_checkpoint_lite(
+                ["build", target_dir, "--quiet"],
                 stdout=subprocess.PIPE,
                 stderr=subprocess.PIPE,
                 text=True,
-                check=True
+                check=True,
             )
 
             output = init_process.stdout.strip()
