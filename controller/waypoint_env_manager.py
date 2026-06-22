@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import os
 import shlex
+import shutil
 import subprocess
 import time
 import uuid
@@ -11,42 +12,67 @@ from .base_env_manager import EnvironmentManager, SnapshotNode
 from .benchmark import Calculator
 from decider import Decider
 
-logger = logging.getLogger("EnvManager.CkptLite")
+logger = logging.getLogger("EnvManager.Waypoint")
 
 STATEFORK_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
-CHECKPOINT_LITE_BIN = os.path.join(STATEFORK_ROOT, "checkpoint-lite")
-BASH_INIT_BIN = os.path.join(STATEFORK_ROOT, "bash_init")
 
-def _checkpoint_lite_env() -> dict[str, str]:
+
+def _resolve_bin(name: str, env_var: str) -> str:
+    """Locate a Waypoint helper binary.
+
+    Resolution order: an explicit ``env_var`` override, then a binary of the
+    same name found on ``PATH``, then a repo-local fallback at
+    ``STATEFORK_ROOT/<name>`` (typically a developer-created symlink). The path
+    is returned even if it does not exist; executability is validated lazily in
+    ``_run_waypoint`` so that importing this module never requires Waypoint to
+    be installed (other backends must stay usable without it).
+    """
+    return (
+        os.environ.get(env_var)
+        or shutil.which(name)
+        or os.path.join(STATEFORK_ROOT, name)
+    )
+
+
+WAYPOINT_BIN = _resolve_bin("waypoint", "WAYPOINT_BIN")
+BASH_INIT_BIN = _resolve_bin("bash_init", "WAYPOINT_BASH_INIT_SRC")
+
+def _waypoint_env() -> dict[str, str]:
     env = os.environ.copy()
-    env.setdefault("CHECKPOINT_BASH_INIT_SRC", BASH_INIT_BIN)
     env.setdefault("WAYPOINT_BASH_INIT_SRC", BASH_INIT_BIN)
     env.setdefault("WAYPOINT_PRESERVE_SESSION_ON_CLEANUP", "true")
     if "CHECKPOINT_SESSIONS_DIR" in env:
         env.setdefault("WAYPOINT_SESSIONS_DIR", env["CHECKPOINT_SESSIONS_DIR"])
     return env
 
-def _run_checkpoint_lite(args: list[str], **kwargs):
+def _run_waypoint(args: list[str], **kwargs):
+    if not (os.path.isfile(WAYPOINT_BIN) and os.access(WAYPOINT_BIN, os.X_OK)):
+        raise FileNotFoundError(
+            f"Waypoint binary not found or not executable: {WAYPOINT_BIN}. "
+            "Install Waypoint (https://github.com/Alex-XJK/waypoint) and either "
+            "put it on PATH, set the WAYPOINT_BIN environment variable, or "
+            f"symlink it into {STATEFORK_ROOT}."
+        )
     return subprocess.run(
-        [CHECKPOINT_LITE_BIN, *args],
+        [WAYPOINT_BIN, *args],
         cwd=STATEFORK_ROOT,
-        env=_checkpoint_lite_env(),
+        env=_waypoint_env(),
         **kwargs,
     )
 
-class CkptCalculator(Calculator):
+class WaypointCalculator(Calculator):
     """
-    CkptCalculator is a specialized FileSizeCalculator for Checkpoint-lite that
+    WaypointCalculator is a specialized FileSizeCalculator for Waypoint that
     collects the sizes of filesystem and memory checkpoint files in a session directory.
 
     We have to override but not extend the FileSizeCalculator because we need to
-    target a specific subdirectory structure created by Checkpoint-lite v0.4.0 and do some filtering.
+    target a specific subdirectory structure created by Waypoint v0.4.0 and do some filtering.
     """
-    def __init__(self, root_dir: str, sub_dir: str, name: str = "CkptFsCalculator"):
+    def __init__(self, root_dir: str, sub_dir: str, name: str = "WaypointFsCalculator"):
         super().__init__(name=name)
         self.root_dir = os.path.abspath(root_dir)
         self.sub_dir = sub_dir  # either "upper" or "criu"
-        self.logger.debug(f"Attached CkptCalculator #{self.instance_id} to {self.root_dir}/*/{self.sub_dir}")
+        self.logger.debug(f"Attached WaypointCalculator #{self.instance_id} to {self.root_dir}/*/{self.sub_dir}")
 
     def __get_all_items(self) -> List[str]:
         if not os.path.exists(self.root_dir):
@@ -82,9 +108,9 @@ class CkptCalculator(Calculator):
                 data.append((name, size))
         return data
 
-class CheckpointLiteAttachManager(EnvironmentManager):
+class WaypointAttachManager(EnvironmentManager):
     """
-    CheckpointLiteAttachManager is a specialized Checkpoint-lite EnvironmentManager that attaches to an existing session.
+    WaypointAttachManager is a specialized Waypoint EnvironmentManager that attaches to an existing session.
     """
     PID_NOT_PROVIDED = -2
 
@@ -93,11 +119,11 @@ class CheckpointLiteAttachManager(EnvironmentManager):
                  target_pid: int = PID_NOT_PROVIDED,
                  decider: Optional[Decider] = None,
                  ):
-        super().__init__(backend_name="Checkpoint-lite", decider=decider)
+        super().__init__(backend_name="Waypoint", decider=decider)
         self.session_id = session_id
         self.target_pid = target_pid
 
-        logger.info(f"Attaching to existing Checkpoint-lite session {self.session_id} with target PID {self.target_pid}...")
+        logger.info(f"Attaching to existing Waypoint session {self.session_id} with target PID {self.target_pid}...")
 
         sid, _ = self._core_snapshot()
         if sid is None:
@@ -114,7 +140,7 @@ class CheckpointLiteAttachManager(EnvironmentManager):
 
         start = time.time()
         try:
-            _run_checkpoint_lite(
+            _run_waypoint(
                 ["create", self.session_id, snapshot_id, str(self.target_pid)],
                 check=True,
             )
@@ -122,7 +148,7 @@ class CheckpointLiteAttachManager(EnvironmentManager):
             self.snapshots[snapshot_id] = snapshot_id
             return snapshot_id, elapsed
         except subprocess.CalledProcessError as e:
-            logger.error(f"CheckpointLite snapshot failed: {e}")
+            logger.error(f"Waypoint snapshot failed: {e}")
             return None, 0.0
 
     def _core_create_env(self, snapshot_id: str) -> tuple[Optional[str], float]:
@@ -133,48 +159,48 @@ class CheckpointLiteAttachManager(EnvironmentManager):
 
         start = time.time()
         try:
-            _run_checkpoint_lite(
+            _run_waypoint(
                 ["restore", self.session_id, snapshot_id],
                 check=True,
             )
             elapsed = time.time() - start
             return snapshot_id, elapsed
         except subprocess.CalledProcessError as e:
-            logger.error(f"CheckpointLite restore failed: {e}")
+            logger.error(f"Waypoint restore failed: {e}")
             return None, 0.0
 
     def _core_cleanup(self):
-        logger.info("Shutting down CheckpointLite environment...")
+        logger.info("Shutting down Waypoint environment...")
         try:
-            _run_checkpoint_lite(
+            _run_waypoint(
                 ["cleanup", self.session_id],
                 check=True,
             )
         except subprocess.CalledProcessError as e:
-            logger.error(f"CheckpointLite cleanup failed: {e}")
+            logger.error(f"Waypoint cleanup failed: {e}")
             logger.info("Attempting force cleanup...")
             try:
-                _run_checkpoint_lite(
+                _run_waypoint(
                     ["cleanup", self.session_id, "--force"],
                     check=True,
                 )
             except subprocess.CalledProcessError as e:
-                logger.error(f"CheckpointLite force cleanup failed: {e}")
+                logger.error(f"Waypoint force cleanup failed: {e}")
                 return
 
     def _core_exec(self, command: List[str] | str, timeout: Optional[float]) -> tuple[int, str, str]:
         if not self.session_id:
             return -1, "", "No session_id available"
 
-        # Convert command into a sequence of arguments (checkpoint-lite expects args list)
+        # Convert command into a sequence of arguments (waypoint expects args list)
         if isinstance(command, str):
             cmd_str = command
         else:
             cmd_str = shlex.join(command)
 
-        # Execute `command` via `checkpoint-lite exec <session_id> <args...>`.
+        # Execute `command` via `waypoint exec <session_id> <args...>`.
         try:
-            proc = _run_checkpoint_lite(
+            proc = _run_waypoint(
                 ["exec", self.session_id, cmd_str],
                 stdout=subprocess.PIPE,
                 stderr=subprocess.PIPE,
@@ -186,15 +212,15 @@ class CheckpointLiteAttachManager(EnvironmentManager):
         except subprocess.TimeoutExpired as e:
             out = e.stdout or ""
             err = (e.stderr or "") + f"\n[timeout after {timeout}s]"
-            logger.error(f"CheckpointLite exec timeout: {e}")
+            logger.error(f"Waypoint exec timeout: {e}")
             return -1, out, err
         except Exception as e:
-            logger.error(f"CheckpointLite exec failed: {e}")
+            logger.error(f"Waypoint exec failed: {e}")
             return -1, "", str(e)
 
-class CheckpointLiteBuildManager(CheckpointLiteAttachManager):
+class WaypointBuildManager(WaypointAttachManager):
     """
-    CheckpointLiteBuildManager is a specialized Checkpoint-lite EnvironmentManager that builds a new session.
+    WaypointBuildManager is a specialized Waypoint EnvironmentManager that builds a new session.
     """
     def __init__(self,
                  dockerfile_dir: str = ".",
@@ -206,9 +232,9 @@ class CheckpointLiteBuildManager(CheckpointLiteAttachManager):
         else:
             target_dir = os.path.abspath(dockerfile_dir)
 
-        logger.info("Creating a new Checkpoint-lite session...")
+        logger.info("Creating a new Waypoint session...")
         if not build:
-            init_process = _run_checkpoint_lite(
+            init_process = _run_waypoint(
                 ["init", target_dir, "--quiet"],
                 stdout=subprocess.PIPE,
                 stderr=subprocess.PIPE,
@@ -222,7 +248,7 @@ class CheckpointLiteBuildManager(CheckpointLiteAttachManager):
             except ValueError:
                 raise RuntimeError(f"Unexpected output format: {output}")
         else:
-            init_process = _run_checkpoint_lite(
+            init_process = _run_waypoint(
                 ["build", target_dir, "--quiet"],
                 stdout=subprocess.PIPE,
                 stderr=subprocess.PIPE,
@@ -240,10 +266,10 @@ class CheckpointLiteBuildManager(CheckpointLiteAttachManager):
 
         super().__init__(session_id=sid, decider=decider)
 
-        # Attach the new CkptCalculator to this session
+        # Attach the new WaypointCalculator to this session
         base_dir = os.path.join(self._work_dir, "../")
-        self._stats.attach_size_calculator(CkptCalculator(base_dir, "upper", name="FILESYSTEM"))
-        self._stats.attach_size_calculator(CkptCalculator(base_dir, "criu", name="MEMORY"))
+        self._stats.attach_size_calculator(WaypointCalculator(base_dir, "upper", name="FILESYSTEM"))
+        self._stats.attach_size_calculator(WaypointCalculator(base_dir, "criu", name="MEMORY"))
 
     @property
     def work_dir(self) -> str:

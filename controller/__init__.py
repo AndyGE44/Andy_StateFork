@@ -2,7 +2,7 @@ from .base_env_manager import EnvironmentManager
 from .container_env_manager import ContainerAttachManager, ContainerBuildManager
 from .criu_env_manager import CRIUAttachManager, CRIUBuildManager
 from .hybrid_env_manager import HybridAttachManager, HybridBuildManager
-from .ckptlite_env_manager import CheckpointLiteAttachManager, CheckpointLiteBuildManager
+from .waypoint_env_manager import WaypointAttachManager, WaypointBuildManager
 from .gvisor_env_manager import GvisorBuildManager, GvisorAttachManager
 from .firecracker_env_manager import FireBuildManager, FireAttachManager
 from .benchmark import BenchmarkStats, BenchmarkResult, Statistics
@@ -17,7 +17,7 @@ EnvType = Literal[
     "docker_build", "docker_attach",
     "podman_build", "podman_attach",
     "hybrid_build", "hybrid_attach",
-    "ckpt_build", "ckpt_attach",
+    "waypoint_build", "waypoint_attach", "ckpt_build", "ckpt_attach",
     "gvisor_build", "gvisor_attach",
     "firecracker_build", "firecracker_attach"
 ]
@@ -84,14 +84,14 @@ def create_env_manager(method: EnvType, **kwargs) -> EnvironmentManager:
             export_dir=kwargs.get("export_dir", "/tmp/statefork_podman"),
             decider=kwargs.get("decider")
         )
-    elif method == "ckpt_build":
-        return CheckpointLiteBuildManager(
+    elif method in ("waypoint_build", "ckpt_build"):
+        return WaypointBuildManager(
             dockerfile_dir=kwargs.get("dockerfile_dir"),
             build=kwargs.get("build", True),
             decider=kwargs.get("decider")
         )
-    elif method == "ckpt_attach":
-        return CheckpointLiteAttachManager(
+    elif method in ("waypoint_attach", "ckpt_attach"):
+        return WaypointAttachManager(
             session_id=kwargs["session_id"],
             target_pid=kwargs.get("target_pid", -2),
             decider=kwargs.get("decider")

@@ -21,7 +21,7 @@ abstract: >-
   StateFork provides structured environment snapshoting and
   restoration capabilities for agentic exploration. It supports
   multiple snapshotting methods, including Docker, Podman, and
-  Checkpoint-lite, enabling flexible and efficient state management
+  Waypoint, enabling flexible and efficient state management
   for agents.
 license: Apache-2.0
 version: 0.5.0

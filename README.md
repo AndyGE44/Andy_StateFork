@@ -51,7 +51,7 @@ They follow the naming convention `{Backend}{Action}Manager`, where:
   - `Container` for Docker/Podman (manages file system state only)
   - `CRIU` for process-level CRIU checkpointing
   - `Hybrid` for Podman + CRIU (captures both file and process states) 
-  - `CheckpointLite` for Checkpoint-lite, a lightweight checkpointing tool (captures both file and process states)
+  - `Waypoint` for Waypoint, a lightweight checkpointing tool (captures both file and process states)
   - `gVisor` for Docker in gVisor (captures both file and process states)
   - `Firecracker` for Firecracker microVM (captures process states)
 - **{Action}** Lifecycle mode:
@@ -84,18 +84,20 @@ See the full method table below for supported types and arguments.
 | `criu_attach`     | CRIUAttachManager           | CRIU            | `target_pid(int)`                        | `work_dir(str)`                                                                          |
 | `hybrid_build`    | HybridBuildManager          | Podman + CRIU   |                                          | `container_name(str)`, `dockerfile_dir(str)`, `export_dir(str)`, `extra_args(List[str])` |
 | `hybrid_attach`   | HybridAttachManager         | Podman + CRIU   | `container_name(str)`                    | `export_dir(str)`                                                                        |
-| `ckpt_build`      | CheckpointLiteBuildManager  | Checkpoint-lite |                                          | `dockerfile_dir(str)`, `build(bool)`                                                    |
-| `ckpt_attach`     | CheckpointLiteAttachManager | Checkpoint-lite | `target_pid(int)`, `session_id(str)`     |                                                                                          |
+| `waypoint_build`  | WaypointBuildManager        | Waypoint        |                                          | `dockerfile_dir(str)`, `build(bool)`                                                    |
+| `waypoint_attach` | WaypointAttachManager       | Waypoint        | `target_pid(int)`, `session_id(str)`     |                                                                                          |
 | `gvisor_build`    | GvisorBuildManager          | gVisor + Docker |                                          | `dockerfile_dir(str)`, `base_image(str)`, `extra_args(List[str])`                        |
 | `gvisor_attach`   | GvisorAttachManager         | gVisor + Docker | `container_name(str)`, `base_image(str)` | `extra_args(List[str])`                                                                  |
 |`firecracker_build`| FireBuildManager            | Firecracker     |                                          | `fire_parent_dir(str)`, `inject_dir(str)`                                                |
+| `ckpt_build`      | WaypointBuildManager        | Waypoint        |                                          | Legacy alias for `waypoint_build`                                                       |
+| `ckpt_attach`     | WaypointAttachManager       | Waypoint        | `target_pid(int)`, `session_id(str)`     | Legacy alias for `waypoint_attach`                                                      |
 |`firecracker_attach`| FireAttachManager          | Firecracker     |`pid(int)`, `microvm_ip(str)`, `tap_dev(str)`, `key(str)`, `checkpoint_dir(str)`, `vm_dir(str)`, `fire_binary(str)`, `api_socket(str)`| |
 
 ## 🔀 Smart Decider
 
 When `snapshot()` is called, StateFork can create either a **physical** or **virtual** snapshot:
 
-- **Physical snapshot** — invokes the backend’s full checkpoint path (e.g., container commit, CRIU dump, or Checkpoint-lite capture). Restore reloads that state in one step.
+- **Physical snapshot** — invokes the backend’s full checkpoint path (e.g., container commit, CRIU dump, or Waypoint capture). Restore reloads that state in one step.
 - **Virtual snapshot** — records only the commands executed since the last snapshot, without calling the backend checkpoint. Restore walks up to the nearest physical ancestor, restores it, then replays the stored commands in order.
 
 This lets callers trade capture cost and storage against restore-time replay. The choice is made by a **`Decider`** strategy passed into any `EnvironmentManager` (default: always physical). Built-in policies live in `decider/`; the interactive shell selects them with `--decider`.
@@ -141,10 +143,21 @@ pip install -r requirements.txt
 - Must use Root or `sudo` privileges to run Podman commands, as [the checkpoints currently work with root containers only](https://podman.io/docs/checkpoint).
 - Manually set the OCI runtime in `/usr/share/containers/containers.conf` to use **runc** instead of the default **crun**.
 
-### Checkpoint-lite Method (CRIU + OverlayFS)
-- Checkpoint-lite must be installed from: [github.com/Alex-XJK/checkpoint-lite](https://github.com/Alex-XJK/checkpoint-lite)
-- Make sure the `checkpoint-lite` binary is in the current directory (suggested using a symbolic link).
+### Waypoint Method (CRIU + OverlayFS)
+- Waypoint must be installed from: [github.com/Alex-XJK/waypoint](https://github.com/Alex-XJK/waypoint)
+- Make the `waypoint` binary discoverable in one of three ways: set the `WAYPOINT_BIN` environment variable to its full path, place it on your `PATH`, or symlink it into the repository root (e.g. `ln -s /path/to/waypoint ./waypoint`). The `bash_init` helper is resolved the same way via `WAYPOINT_BASH_INIT_SRC`. These files are intentionally not committed.
 - Root or `sudo` privileges are required.
+
+#### Environment variables (optional)
+
+Copy `env.sample.sh` to `env.local.sh`, edit it, and `source ./env.local.sh` before running. All variables are optional.
+
+| Variable | Purpose | Default / fallback |
+|---|---|---|
+| `WAYPOINT_BIN` | Path to the `waypoint` binary | `$PATH`, then `<repo>/waypoint` |
+| `WAYPOINT_BASH_INIT_SRC` | Path to the `bash_init` helper | `$PATH`, then `<repo>/bash_init` |
+| `WAYPOINT_SESSIONS_DIR` | Directory for session state (`CHECKPOINT_SESSIONS_DIR` is an alias) | Waypoint default |
+| `WAYPOINT_PRESERVE_SESSION_ON_CLEANUP` | Keep session directories after cleanup | `true` |
 
 ### gVisor Method (with Docker)
 - Docker must be installed and running.
