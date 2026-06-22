@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import os
 import shlex
+import shutil
 import subprocess
 import time
 import uuid
@@ -14,8 +15,27 @@ from decider import Decider
 logger = logging.getLogger("EnvManager.Waypoint")
 
 STATEFORK_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
-WAYPOINT_BIN = os.path.join(STATEFORK_ROOT, "waypoint")
-BASH_INIT_BIN = os.path.join(STATEFORK_ROOT, "bash_init")
+
+
+def _resolve_bin(name: str, env_var: str) -> str:
+    """Locate a Waypoint helper binary.
+
+    Resolution order: an explicit ``env_var`` override, then a binary of the
+    same name found on ``PATH``, then a repo-local fallback at
+    ``STATEFORK_ROOT/<name>`` (typically a developer-created symlink). The path
+    is returned even if it does not exist; executability is validated lazily in
+    ``_run_waypoint`` so that importing this module never requires Waypoint to
+    be installed (other backends must stay usable without it).
+    """
+    return (
+        os.environ.get(env_var)
+        or shutil.which(name)
+        or os.path.join(STATEFORK_ROOT, name)
+    )
+
+
+WAYPOINT_BIN = _resolve_bin("waypoint", "WAYPOINT_BIN")
+BASH_INIT_BIN = _resolve_bin("bash_init", "WAYPOINT_BASH_INIT_SRC")
 
 def _waypoint_env() -> dict[str, str]:
     env = os.environ.copy()
@@ -26,6 +46,13 @@ def _waypoint_env() -> dict[str, str]:
     return env
 
 def _run_waypoint(args: list[str], **kwargs):
+    if not (os.path.isfile(WAYPOINT_BIN) and os.access(WAYPOINT_BIN, os.X_OK)):
+        raise FileNotFoundError(
+            f"Waypoint binary not found or not executable: {WAYPOINT_BIN}. "
+            "Install Waypoint (https://github.com/Alex-XJK/waypoint) and either "
+            "put it on PATH, set the WAYPOINT_BIN environment variable, or "
+            f"symlink it into {STATEFORK_ROOT}."
+        )
     return subprocess.run(
         [WAYPOINT_BIN, *args],
         cwd=STATEFORK_ROOT,
