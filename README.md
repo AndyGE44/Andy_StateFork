@@ -145,7 +145,7 @@ pip install -r requirements.txt
 
 ### Waypoint Method (CRIU + OverlayFS)
 - Waypoint must be installed from: [github.com/Alex-XJK/waypoint](https://github.com/Alex-XJK/waypoint)
-- Make the `waypoint` binary discoverable in one of three ways: set the `WAYPOINT_BIN` environment variable to its full path, place it on your `PATH`, or symlink it into the repository root (e.g. `ln -s /path/to/waypoint ./waypoint`). The `bash_init` helper is resolved the same way via `WAYPOINT_BASH_INIT_SRC`. These files are intentionally not committed.
+- Make the `waypoint` binary discoverable in one of three ways: set the `WAYPOINT_BIN` environment variable to its full path, place it on your `PATH`, or symlink it into the repository root (e.g. `ln -s /path/to/waypoint ./waypoint`). The binary is intentionally not committed. Other Waypoint runtime settings, such as `bash_init`, session storage, and cleanup behavior, are resolved by Waypoint using its own environment/config/default precedence.
 - Root or `sudo` privileges are required.
 
 #### Environment variables (optional)
@@ -154,10 +154,11 @@ Copy `env.sample.sh` to `env.local.sh`, edit it, and `source ./env.local.sh` bef
 
 | Variable | Purpose | Default / fallback |
 |---|---|---|
-| `WAYPOINT_BIN` | Path to the `waypoint` binary | `$PATH`, then `<repo>/waypoint` |
-| `WAYPOINT_BASH_INIT_SRC` | Path to the `bash_init` helper | `$PATH`, then `<repo>/bash_init` |
-| `WAYPOINT_SESSIONS_DIR` | Directory for session state (`CHECKPOINT_SESSIONS_DIR` is an alias) | Waypoint default |
-| `WAYPOINT_PRESERVE_SESSION_ON_CLEANUP` | Keep session directories after cleanup | `true` |
+| `WAYPOINT_BIN` | Path to the `waypoint` binary used by StateFork | `$PATH`, then `<repo>/waypoint` |
+| `WAYPOINT_CONFIG` | Waypoint config file for runtime settings | Waypoint config search order |
+| `WAYPOINT_BASH_INIT_SRC` | Path to the `bash_init` helper, read by Waypoint | Waypoint config/default |
+| `WAYPOINT_SESSIONS_DIR` | Directory for Waypoint session state | Waypoint config/default |
+| `WAYPOINT_PRESERVE_SESSION_ON_CLEANUP` | Preserve session directories during Waypoint cleanup | Waypoint config/default |
 
 ### gVisor Method (with Docker)
 - Docker must be installed and running.

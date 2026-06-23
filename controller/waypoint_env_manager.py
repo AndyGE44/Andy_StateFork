@@ -35,15 +35,7 @@ def _resolve_bin(name: str, env_var: str) -> str:
 
 
 WAYPOINT_BIN = _resolve_bin("waypoint", "WAYPOINT_BIN")
-BASH_INIT_BIN = _resolve_bin("bash_init", "WAYPOINT_BASH_INIT_SRC")
 
-def _waypoint_env() -> dict[str, str]:
-    env = os.environ.copy()
-    env.setdefault("WAYPOINT_BASH_INIT_SRC", BASH_INIT_BIN)
-    env.setdefault("WAYPOINT_PRESERVE_SESSION_ON_CLEANUP", "true")
-    if "CHECKPOINT_SESSIONS_DIR" in env:
-        env.setdefault("WAYPOINT_SESSIONS_DIR", env["CHECKPOINT_SESSIONS_DIR"])
-    return env
 
 def _run_waypoint(args: list[str], **kwargs):
     if not (os.path.isfile(WAYPOINT_BIN) and os.access(WAYPOINT_BIN, os.X_OK)):
@@ -56,9 +48,9 @@ def _run_waypoint(args: list[str], **kwargs):
     return subprocess.run(
         [WAYPOINT_BIN, *args],
         cwd=STATEFORK_ROOT,
-        env=_waypoint_env(),
         **kwargs,
     )
+
 
 class WaypointCalculator(Calculator):
     """
