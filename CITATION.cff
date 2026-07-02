@@ -9,6 +9,10 @@ authors:
     given-names: Tianle
   - family-names: Fu
     given-names: Ruizhe
+  - family-names: Gillai
+    given-names: Danielle
+  - family-names: Ge
+    given-names: Tiancheng
   - family-names: Wu
     given-names: Eugene
   - family-names: Kaffes
@@ -24,8 +28,8 @@ abstract: >-
   Waypoint, enabling flexible and efficient state management
   for agents.
 license: Apache-2.0
-version: 0.5.0
-date-released: '2026-02-20'
+version: 0.6.0
+date-released: '2026-07-01'
 references:
   - type: article
     title: "Toward Systems Foundations for Agentic Exploration"

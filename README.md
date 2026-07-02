@@ -1,4 +1,4 @@
-# StateFork: A Lightweight Versioned Container Manager
+# <img src="./docs/StateFork-logo-notext.png" height="30" /> StateFork: A Lightweight Versioned Container Manager
 
 **StateFork** is a simple, modular snapshotting and benchmarking tool for managing long-running applications in a 
 version-controlled and reproducible environment. It supports both container-based (Docker, Podman) and process-based (CRIU) backends, 
@@ -89,8 +89,6 @@ See the full method table below for supported types and arguments.
 | `gvisor_build`    | GvisorBuildManager          | gVisor + Docker |                                          | `dockerfile_dir(str)`, `base_image(str)`, `extra_args(List[str])`                        |
 | `gvisor_attach`   | GvisorAttachManager         | gVisor + Docker | `container_name(str)`, `base_image(str)` | `extra_args(List[str])`                                                                  |
 |`firecracker_build`| FireBuildManager            | Firecracker     |                                          | `fire_parent_dir(str)`, `inject_dir(str)`                                                |
-| `ckpt_build`      | WaypointBuildManager        | Waypoint        |                                          | Legacy alias for `waypoint_build`                                                       |
-| `ckpt_attach`     | WaypointAttachManager       | Waypoint        | `target_pid(int)`, `session_id(str)`     | Legacy alias for `waypoint_attach`                                                      |
 |`firecracker_attach`| FireAttachManager          | Firecracker     |`pid(int)`, `microvm_ip(str)`, `tap_dev(str)`, `key(str)`, `checkpoint_dir(str)`, `vm_dir(str)`, `fire_binary(str)`, `api_socket(str)`| |
 
 ## 🔀 Smart Decider
@@ -154,11 +152,13 @@ Copy `env.sample.sh` to `env.local.sh`, edit it, and `source ./env.local.sh` bef
 
 | Variable | Purpose | Default / fallback |
 |---|---|---|
-| `WAYPOINT_BIN` | Path to the `waypoint` binary used by StateFork | `$PATH`, then `<repo>/waypoint` |
+| `WAYPOINT_BIN` | Path to the `waypoint` binary used by **StateFork** | `$PATH`, then `<repo>/waypoint` |
 | `WAYPOINT_CONFIG` | Waypoint config file for runtime settings | Waypoint config search order |
 | `WAYPOINT_BASH_INIT_SRC` | Path to the `bash_init` helper, read by Waypoint | Waypoint config/default |
 | `WAYPOINT_SESSIONS_DIR` | Directory for Waypoint session state | Waypoint config/default |
 | `WAYPOINT_PRESERVE_SESSION_ON_CLEANUP` | Preserve session directories during Waypoint cleanup | Waypoint config/default |
+
+Check the Waypoint [user guide](https://github.com/Alex-XJK/waypoint#0-optional-configure-global-settings) for more details on these variables and their precedence.
 
 ### gVisor Method (with Docker)
 - Docker must be installed and running.
